@@ -1,6 +1,6 @@
 import aocd
 import unicode except strip
-import std/[strutils, sequtils, re, packedsets], unittest
+import std/[strutils, sequtils, re, intsets, unittest]
 
 const example1 = """
 Card 1: 41 48 83 86 17 | 83 86  6 31 17  9 48 53
@@ -14,19 +14,18 @@ Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11
 func extractNumbers(input: string): seq[int] =
   input.strip.filterIt(it.isDigit or it == ' ').join.strip.split(re" +").map(parseInt)
 
-day(2023, 4):
-  let cards = input.strip.splitLines
+day 4:
+  let cards = lines
     .mapIt(it.split(":|".toRunes).mapIt(it.extractNumbers))
-    .mapIt((winning: it[1].toPackedSet, drawn: it[2].toPackedSet))
+    .mapIt((winning: it[1].toIntSet, drawn: it[2].toIntSet))
 
-  part(1):
-    var points = 0
+  part 1:
+    result = 0
     for card in cards:
       if (let score = 1 shl len(card.winning * card.drawn); score > 1):
-        points += score shr 1
-    points
+        result += score shr 1
 
-  part(2):
+  part 2:
     var copies = cards.mapIt(1)
 
     for i, (winning, drawn) in cards.pairs:
@@ -36,5 +35,5 @@ day(2023, 4):
 
     copies.foldl(a + b)
 
-  check(1, 23678)
-  check(2, 15455663)
+  verifyPart(1, 23678)
+  verifyPart(2, 15455663)

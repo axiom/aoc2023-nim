@@ -1,9 +1,8 @@
 import aocd
 import unicode except strip
-import std/[strutils, sequtils, strscans, strformat], unittest
+import std/[strutils, sequtils, strscans, unittest]
 
-day(2023, 2):
-  let lines = input.strip.splitLines
+day 2:
   var possibleGameSum, powerSetSum = 0
 
   for game in lines:
@@ -22,11 +21,11 @@ day(2023, 2):
 
     powerSetSum += red * green * blue
 
-  part(1):
+  part 1:
     possibleGameSum
 
-  part(2):
+  part 2:
     powerSetSum
 
-  check(1, 2207)
-  check(2, 62241)
+  verifyPart(1, 2207)
+  verifyPart(2, 62241)

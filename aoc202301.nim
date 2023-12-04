@@ -1,5 +1,5 @@
 import aocd
-import std/[strutils, sequtils], unittest
+import std/[strutils, sequtils, unittest]
 
 const digitNames = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
 
@@ -26,21 +26,18 @@ check combine(@[1]) == 11
 check combine(@[1, 2]) == 12
 check combine(@[1, 2, 3]) == 13
 
-day(2023, 1):
-  let lines = input.strip.splitLines
-
-  part(1):
+day 1:
+  part 1:
     lines
       .mapIt(it.filter(isDigit).mapIt(parseInt($it)))
       .map(combine)
       .foldl(a + b)
 
-  check(1, 54990)
-
-  part(2):
+  part 2:
     lines
       .map(extractDigits)
       .map(combine)
       .foldl(a + b)
 
-  check(2, 54473)
+  verifyPart(1, 54990)
+  verifyPart(2, 54473)

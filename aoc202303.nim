@@ -1,5 +1,5 @@
 import aocd
-import std/[strutils, packedsets, tables], unittest
+import std/[strutils, intsets, tables, unittest]
 
 func isSymbol(c: char): bool =
   not (c in Digits) and c != '.'
@@ -7,7 +7,7 @@ func isSymbol(c: char): bool =
 func isGear(c: char): bool =
   c == '*'
 
-type rowcol = int32
+type rowcol = int
 
 func encode(row: int, col: int): rowcol =
   return rowcol(row shl 16 or col)
@@ -21,7 +21,7 @@ iterator neighbors(pos: rowcol): rowcol =
       if dx != 0 or dy != 0:
         yield encode(row(pos) + dy, col(pos) + dx)
 
-proc adjacent(symbols: PackedSet[rowcol], start: rowcol, number: int): bool =
+proc adjacent(symbols: IntSet, start: rowcol, number: int): bool =
   let
     x = col(start)
     y = row(start)
@@ -30,11 +30,10 @@ proc adjacent(symbols: PackedSet[rowcol], start: rowcol, number: int): bool =
       if pos in symbols:
         return true
 
-day(2023, 3):
-  let lines = input.strip.splitLines
+day 3:
   var
-    symbols = initPackedSet[rowcol]()
-    gears = initPackedSet[rowcol]()
+    symbols = initIntSet()
+    gears = initIntSet()
     partPos = initTable[rowcol, int]()
     partSum = 0
 
@@ -74,14 +73,14 @@ day(2023, 3):
 
       wasInDigits = inDigits
 
-  part(1):
+  part 1:
     partSum
 
-  part(2):
+  part 2:
     var gearRatioSum = 0
     for gear in gears:
       var gearRatio = 1
-      var gearParts = initPackedSet[int]()
+      var gearParts = initIntSet()
       for pos in neighbors(gear):
         if pos in partPos:
           gearParts.incl(partPos[pos])
@@ -92,5 +91,5 @@ day(2023, 3):
         gearRatioSum += gearRatio
     gearRatioSum
 
-  check(1, 546563)
-  check(2, 91031374)
+  verifyPart(1, 546563)
+  verifyPart(2, 91031374)

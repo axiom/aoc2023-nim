@@ -1,4 +1,5 @@
 import std/[
+  re,
   appdirs,
   dirs,
   files,
@@ -14,6 +15,13 @@ import std/[
   unittest,
 ]
 
+# Advent of Code (aoc) helper library for Nim, copied from and inspired by
+# multiple other people:
+# - https://github.com/MichalMarsalek/Advent-of-code/blob/master/2022/Nim/aoc_logic.nim
+# - https://github.com/amb/aoc-nim/blob/master/aoc.nim
+
+#region Utilities for getting the AoC input
+
 proc p(path: string): Path = Path(path)
 proc `$`(path: Path): string = path.string
 proc `/`(path: Path, sub: string): Path = path / Path(sub)
@@ -26,13 +34,6 @@ proc recursiveWriteFile*(path: Path, content: string) =
   ## if they do not exist. Will not error if a file already exists at `path`.
   createDir(path.parentDir)
   path.writeFile(content)
-
-template timed(code: untyped): Duration =
-  block:
-    let start = getMonoTime()
-    code
-    let finish = getMonoTime()
-    (finish - start)
 
 proc getCookie(): string =
   ## Reads the user's AoC session cookie. Location is decided by `getConfigDir()`.
@@ -72,6 +73,8 @@ proc getCookie(): string =
       fmt"but could not parse' {token}' as a hexadecimal."
     )
 
+const Year = 2023
+
 proc getInput(year, day: int): string =
   ## Fetches the users input for a given year and day.
   ## Will cache the input after the first time this proc is called.
@@ -87,30 +90,60 @@ proc getInput(year, day: int): string =
   result = client.getContent(fmt"https://adventofcode.com/{year}/day/{day}/input")
   cachedInputPath.recursiveWriteFile(result)
 
+#endregion
+
 proc printResults(day: int, answers: OrderedTable[int, string], time: Duration) =
   echo "Day " & $day
   for partNum, answer in answers.pairs:
     echo fmt" Part {partNum}: {answer}"
   echo fmt" Time: {time.inMilliseconds:.4} ms"
 
-template day*(year, day: int, solution: untyped): untyped =
-  let input = getInput(year, day)
+template timed(code: untyped): Duration =
+  block:
+    let start = getMonoTime()
+    code
+    let finish = getMonoTime()
+    (finish - start)
+
+template day*(day: int, solution: untyped): untyped =
+  let input = getInput(Year, day)
   var answers: OrderedTable[int, string]
+  var checks: OrderedTable[int, proc (): void]
+
+  template verifyPart(partNum: int, expected: untyped): untyped =
+    checks[partNum] = proc (): void =
+      let actual = answers[partNum]
+      let wanted = $expected
+      test "Part " & $partNum & " should be " & wanted:
+        check actual == wanted
 
   let time = timed:
-    let input {.inject.} = input
+    # Prepare some common input formats
+    let input {.inject, used.} = input.strip
+    let lines {.inject, used.}: seq[string] = input.splitLines
+    proc inputInts(): seq[seq[int]] {.inject, used.} = input.splitLines.mapIt(it.findAll(re"\d+").map(parseInt))
 
     template part(partNum: int, answer: untyped): untyped =
-      answers[partNum] = $answer
-
-    template check(partNum: int, answer: untyped): untyped =
-      check answers[partNum] == $answer
+      block:
+        # Put the code stuff into a function so that I can evaluate it when I
+        # want, and also use the implicit result variable.
+        var x = proc (): string =
+          proc inner(): auto =
+            answer
+          return $inner()
+        answers[partNum] = x()
 
     solution
 
   printResults(day, answers, time)
 
-### Extra utility functions
+  # Run any checks to verify that we have the expected output,
+  # mostly useful for fixing the expected output of an example while tweaking
+  # the solution.
+  for expected in checks.values:
+    expected()
+
+#region Extra utility functions
 
 proc groupBy*[T](sequence: openArray[T], by: proc (t: T): bool): seq[seq[T]] =
   var groups: seq[seq[T]] = @[]
@@ -161,3 +194,5 @@ func lastIndex*[T: openArray](sequence: T): int =
 func last*[T](sequence: openArray[T]): T = sequence[sequence.len - 1]
 
 func first*[T](sequence: openArray[T]): T = sequence[0]
+
+#endregion
