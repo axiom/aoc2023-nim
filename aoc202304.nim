@@ -11,45 +11,30 @@ Card 5: 87 83 26 28 32 | 88 30 70 12 93 22 82 36
 Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11
 """
 
-func extractNumbers(input: string): seq[uint8] =
-  input.strip.filterIt(it.isDigit or it == ' ').join.strip.split(re" +").mapIt(uint8(it.parseInt))
+func extractNumbers(input: string): seq[int] =
+  input.strip.filterIt(it.isDigit or it == ' ').join.strip.split(re" +").map(parseInt)
 
 day(2023, 4):
   let cards = input.strip.splitLines
     .mapIt(it.split(":|".toRunes).mapIt(it.extractNumbers))
-    .mapIt((id: int(it[0][0]), winning: it[1].toPackedSet, drawn: it[2].toPackedSet))
+    .mapIt((winning: it[1].toPackedSet, drawn: it[2].toPackedSet))
 
   part(1):
     var points = 0
-
     for card in cards:
-      var score = 0
-      for number in card.drawn:
-        if number in card.winning:
-          if score == 0:
-            score = 1
-          else:
-            score *= 2
-      points += score
-
+      if (let score = 1 shl len(card.winning * card.drawn); score > 1):
+        points += score shr 1
     points
-
-  # not 1178, 1913, 1043
-  check(1, 23678)
 
   part(2):
     var copies = cards.mapIt(1)
 
-    for i, (_, winning, drawn) in cards.pairs:
-      var matching = 0
-      for number in drawn:
-        if number in winning:
-          matching.inc
-
-      for o in 1..matching:
+    for i, (winning, drawn) in cards.pairs:
+      for o in 1..len(winning * drawn):
         if (let j = i + o; j < copies.len):
           copies[j] += copies[i]
 
     copies.foldl(a + b)
 
+  check(1, 23678)
   check(2, 15455663)
