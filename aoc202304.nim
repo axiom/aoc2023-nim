@@ -1,6 +1,6 @@
 import aocd
 import unicode except strip
-import std/[deques, strutils, sequtils, re, packedsets], unittest
+import std/[strutils, sequtils, re, packedsets], unittest
 
 const example1 = """
 Card 1: 41 48 83 86 17 | 83 86  6 31 17  9 48 53
@@ -11,20 +11,13 @@ Card 5: 87 83 26 28 32 | 88 30 70 12 93 22 82 36
 Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11
 """
 
-type Card = tuple[id: int, winning: PackedSet[uint8], drawn: PackedSet[uint8]]
-
 func extractNumbers(input: string): seq[uint8] =
   input.strip.filterIt(it.isDigit or it == ' ').join.strip.split(re" +").mapIt(uint8(it.parseInt))
 
-func extractCards(input: string): seq[Card] =
-  for x in input.strip.splitLines.mapIt(
-    it
-      .split(":|".toRunes)
-      .mapIt(it.extractNumbers)):
-        result.add((id: int(x[0][0]), winning: x[1].toPackedSet, drawn: x[2].toPackedSet))
-
 day(2023, 4):
-  let cards = input.extractCards
+  let cards = input.strip.splitLines
+    .mapIt(it.split(":|".toRunes).mapIt(it.extractNumbers))
+    .mapIt((id: int(it[0][0]), winning: it[1].toPackedSet, drawn: it[2].toPackedSet))
 
   part(1):
     var points = 0
@@ -45,18 +38,17 @@ day(2023, 4):
   check(1, 23678)
 
   part(2):
-    var scratchcards = cards.toDeque
     var copies = cards.mapIt(1)
 
     for i, (_, winning, drawn) in cards.pairs:
       var matching = 0
       for number in drawn:
         if number in winning:
-          matching += 1
+          matching.inc
 
-      for m in 1..matching:
-        if i + m < copies.len:
-          copies[i + m] += copies[i]
+      for o in 1..matching:
+        if (let j = i + o; j < copies.len):
+          copies[j] += copies[i]
 
     copies.foldl(a + b)
 
