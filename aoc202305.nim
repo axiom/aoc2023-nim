@@ -43,8 +43,22 @@ type
   Target = tuple[category: string, value: int]
   Offsets = seq[seq[tuple[low: int, high: int, offset: int]]]
 
+func `*`(a: Range, b: Range): Range =
+  let ol = max(a.low, b.low)
+  let oh = min(a.high, b.high)
+  if ol <= oh:
+    (low: ol, high: oh)
+  else:
+    (low: 0, high: -1)
+
+func `+`(a: Range, o: int): Range =
+  (low: a.low + o, high: a.high + o)
+
+func isEmpty(a: Range): bool =
+  a.low > a.high
+
 day 5:
-  let i = example1.strip.splitLines
+  let i = input.strip.splitLines
   let seeds = i[0].substr(7).split(" ").map(parseInt)
   var offsets: Offsets = @[]
 
@@ -72,60 +86,47 @@ day 5:
     var frontier = initDeque[tuple[low: int, high: int, r: int]]()
 
     for seed in seeds.distribute(seeds.len div 2, false):
-      let start = seed[0]
-      let length = seed[1]
-      frontier.addLast((low: start, high: start + length - 1, r: 0))
+      frontier.addLast((low: seed[0], high: seed[0] + seed[1] - 1, r: 0))
 
     while frontier.len > 0:
       var c = frontier.popFirst
 
+      # Check if we are done
       if c.r >= offsets.len:
         frontier.addFirst(c)
         break
 
-      # "consume" parts of the candidate that matched a mapping,
-      # and if there is anything left after going through all mappings,
-      # pass that part through without offset
-      var consumed: seq[Range] = @[]
+      # Keep track of the parts of the candidate that are not mapped yet.
+      var slops: seq[Range] = @[(low: c.low, high: c.high)]
+
       for mapping in offsets[c.r]:
         let ol = max(c.low, mapping.low)
         let oh = min(c.high, mapping.high)
+
+        # If the candidate range intersects with this mapping, transform it.
         if ol <= oh:
-          consumed.add((low: mapping.low, high: mapping.high))
           frontier.addLast((low: ol+mapping.offset, high: oh+mapping.offset, r: c.r+1))
 
-      # Pass through parts of the candidate that did not match any mapping, if
-      # any remain.
-      if consumed.len > 0:
-        var x = c.low
-        var i = c.low
-        var j = c.low
-        var burned = false
-        while x in c.low..c.high:
-          burned = false
-          # check if x is consumed
-          for (low, high) in consumed:
-            if x in low..high:
-              burned = true
-              x = high
-              break
+          # Maybe pass through the parts of the candidate that did not intersect
+          # with the mapping.
+          if c.low < ol:
+            slops.add((low: c.low, high: ol-1))
+          if oh < c.high:
+            slops.add((low: oh+1, high: c.high))
 
-          if not burned:
-            x = consumed.mapIt(it.low).min
+      # Filter out slops that overlap with some mapping.
+      slops = slops.filterIt do:
+        let slop = it
+        offsets[c.r].allIt do:
+          let ol = max(slop.low, it.low)
+          let oh = min(slop.high, it.high)
+          ol > oh
 
-          if burned and i < j:
-            frontier.addLast((low: i, high: j, r: c.r+1))
-          if burned:
-            i = x+1
-            j = x+1
-          else:
-            j = x
+      # Nothing mapped, pass value through as is.
+      for slop in slops:
+        frontier.addLast((low: slop.low, high: slop.high, r: c.r+1))
 
-          x.inc
-
-      else:
-        frontier.addLast((low: c.low, high: c.high, r: c.r+1))
-
+    doAssert frontier.len != 0
     frontier.mapIt(it.low).min
 
   verifyPart(1, 388071289)
