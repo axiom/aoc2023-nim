@@ -94,4 +94,5 @@ day 5:
 
     lowest
 
-  # verifyPart(1, 388071289)
+  verifyPart(1, 388071289)
+  verifyPart(2, 84206669)
