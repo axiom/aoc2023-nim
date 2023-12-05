@@ -1,6 +1,6 @@
 import aocd
 import unicode except strip
-import std/[strscans, sugar, strutils, strformat, sequtils, re, intsets, tables, unittest]
+import std/[algorithm, deques, random, strscans, sugar, strutils, strformat, sequtils, re, intsets, tables, unittest]
 
 const example1 = """
 seeds: 79 14 55 13
@@ -39,60 +39,94 @@ humidity-to-location map:
 """
 
 type
-  Range = tuple[source: int, dest: int, length: int]
+  Range = tuple[low: int, high: int]
   Target = tuple[category: string, value: int]
+  Offsets = seq[seq[tuple[low: int, high: int, offset: int]]]
 
 day 5:
-  let i = input.strip.splitLines
+  let i = example1.strip.splitLines
   let seeds = i[0].substr(7).split(" ").map(parseInt)
-  var transformer = newTable[string, proc (source: int): Target]()
+  var offsets: Offsets = @[]
 
-  for x in i[1..^1].groupByBlank:
-    let (ok, source, destination) = x[0].scanTuple("$w-to-$w map:")
-    var ranges = newSeq[Range]()
-    for line in x[1..^1]:
-      let (ok, destStart, sourceStart, length) = line.scanTuple("$i $i $i$.")
-      ranges.add((source: sourceStart, dest: destStart, length: length))
-
-    capture source, destination, ranges:
-      transformer[source] = proc (source: int): Target =
-        result = (category: destination, value: source)
-        for (sourceStart, destStart, length) in ranges:
-          if source in sourceStart..sourceStart+length-1:
-            result = (category: destination, value: destStart + (source - sourceStart))
+  # I checked and non of the mappings overlap.
+  for i, group in i[1..^1].groupByBlank.pairs:
+    offsets.add @[]
+    for line in group[1..^1]:
+      let (ok, dest, source, length) = line.scanTuple("$i $i $i$.")
+      offsets[i].add((low: source, high:source+length-1, offset: dest - source))
 
   part 1:
     var lowest = int.high
 
     for seed in seeds:
-      var value: int = seed
-      var category: string = "seed"
-      while category != "location":
-        let target = (transformer[category])(value)
-        category = target.category
-        value = target.value
+      var value = seed
+      for i, group in offsets:
+        let t = group.filterIt(value in it.low..it.high)
+        if t.len > 0:
+          value += t[0].offset
       lowest = min(lowest, value)
 
     lowest
 
   part 2:
-    # I think we need to go for dynamic programming
+    var frontier = initDeque[tuple[low: int, high: int, r: int]]()
 
-    var lowest = int.high
+    for seed in seeds.distribute(seeds.len div 2, false):
+      let start = seed[0]
+      let length = seed[1]
+      frontier.addLast((low: start, high: start + length - 1, r: 0))
 
-    for i in seeds.low..seeds.high:
-      if i mod 2 == 1: continue
-      echo fmt"i = {i}, {seeds[i]}..{seeds[i] + seeds[i+1]-1}"
-      for seed in seeds[i]..seeds[i]+seeds[i+1]-1:
-        var value: int = seed
-        var category: string = "seed"
-        while category != "location":
-          let target = (transformer[category])(value)
-          category = target.category
-          value = target.value
-        lowest = min(lowest, value)
+    while frontier.len > 0:
+      var c = frontier.popFirst
 
-    lowest
+      if c.r >= offsets.len:
+        frontier.addFirst(c)
+        break
+
+      # "consume" parts of the candidate that matched a mapping,
+      # and if there is anything left after going through all mappings,
+      # pass that part through without offset
+      var consumed: seq[Range] = @[]
+      for mapping in offsets[c.r]:
+        let ol = max(c.low, mapping.low)
+        let oh = min(c.high, mapping.high)
+        if ol <= oh:
+          consumed.add((low: mapping.low, high: mapping.high))
+          frontier.addLast((low: ol+mapping.offset, high: oh+mapping.offset, r: c.r+1))
+
+      # Pass through parts of the candidate that did not match any mapping, if
+      # any remain.
+      if consumed.len > 0:
+        var x = c.low
+        var i = c.low
+        var j = c.low
+        var burned = false
+        while x in c.low..c.high:
+          burned = false
+          # check if x is consumed
+          for (low, high) in consumed:
+            if x in low..high:
+              burned = true
+              x = high
+              break
+
+          if not burned:
+            x = consumed.mapIt(it.low).min
+
+          if burned and i < j:
+            frontier.addLast((low: i, high: j, r: c.r+1))
+          if burned:
+            i = x+1
+            j = x+1
+          else:
+            j = x
+
+          x.inc
+
+      else:
+        frontier.addLast((low: c.low, high: c.high, r: c.r+1))
+
+    frontier.mapIt(it.low).min
 
   verifyPart(1, 388071289)
   verifyPart(2, 84206669)
