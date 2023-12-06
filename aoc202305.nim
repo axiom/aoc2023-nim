@@ -1,6 +1,5 @@
 import aocd
-import unicode except strip
-import std/[algorithm, deques, random, strscans, sugar, strutils, strformat, sequtils, re, intsets, tables, unittest]
+import std/[deques, strformat, strscans, strutils, sequtils, unittest]
 
 const example1 = """
 seeds: 79 14 55 13
@@ -40,47 +39,34 @@ humidity-to-location map:
 
 type
   Range = tuple[low: int, high: int]
-  Target = tuple[category: string, value: int]
-  Offsets = seq[seq[tuple[low: int, high: int, offset: int]]]
-
-func `*`(a: Range, b: Range): Range =
-  let ol = max(a.low, b.low)
-  let oh = min(a.high, b.high)
-  if ol <= oh:
-    (low: ol, high: oh)
-  else:
-    (low: 0, high: -1)
-
-func `+`(a: Range, o: int): Range =
-  (low: a.low + o, high: a.high + o)
-
-func isEmpty(a: Range): bool =
-  a.low > a.high
+  Mapping = tuple[low: int, high: int, offset: int]
 
 day 5:
-  let i = input.strip.splitLines
-  let seeds = i[0].substr(7).split(" ").map(parseInt)
-  var offsets: Offsets = @[]
-
   # I checked and non of the mappings overlap.
-  for i, group in i[1..^1].groupByBlank.pairs:
-    offsets.add @[]
+
+  let inputLines = input.strip.splitLines
+  var mappings: seq[seq[Mapping]] = @[]
+
+  # First line is special, it contains the seeds.
+  let seeds = inputLines[0].substr(7).split(" ").map(parseInt)
+
+  # The rest of the lines are grouped by blank lines, and contain the
+  # transformations.
+  for i, group in inputLines[1..^1].groupByBlank.pairs:
+    mappings.add @[]
     for line in group[1..^1]:
-      let (ok, dest, source, length) = line.scanTuple("$i $i $i$.")
-      offsets[i].add((low: source, high:source+length-1, offset: dest - source))
+      let (ok, dst, src, len) = line.scanTuple("$i $i $i$.")
+      doAssert ok, fmt"Invalid mapping: {line}"
+      mappings[i].add((low: src, high: src+len-1, offset: dst-src))
 
   part 1:
-    var lowest = int.high
-
+    result = int.high
     for seed in seeds:
-      var value = seed
-      for i, group in offsets:
-        let t = group.filterIt(value in it.low..it.high)
-        if t.len > 0:
-          value += t[0].offset
-      lowest = min(lowest, value)
-
-    lowest
+      var location = seed
+      for i, transformations in mappings:
+        for trans in transformations.filterIt(location in it.low..it.high):
+          location += trans.offset
+      result = min(result, location)
 
   part 2:
     var frontier = initDeque[tuple[low: int, high: int, r: int]]()
@@ -91,15 +77,15 @@ day 5:
     while frontier.len > 0:
       var c = frontier.popFirst
 
-      # Check if we are done
-      if c.r >= offsets.len:
+      # Check if we are done, by having reached the location.
+      if c.r >= mappings.len:
         frontier.addFirst(c)
         break
 
       # Keep track of the parts of the candidate that are not mapped yet.
       var slops: seq[Range] = @[(low: c.low, high: c.high)]
 
-      for mapping in offsets[c.r]:
+      for mapping in mappings[c.r]:
         let ol = max(c.low, mapping.low)
         let oh = min(c.high, mapping.high)
 
@@ -117,15 +103,16 @@ day 5:
       # Filter out slops that overlap with some mapping.
       slops = slops.filterIt do:
         let slop = it
-        offsets[c.r].allIt do:
+        mappings[c.r].allIt do:
           let ol = max(slop.low, it.low)
           let oh = min(slop.high, it.high)
           ol > oh
 
-      # Nothing mapped, pass value through as is.
+      # Pass through any part of the candidate that did not get transformed.
       for slop in slops:
         frontier.addLast((low: slop.low, high: slop.high, r: c.r+1))
 
+    # Now just pick the lowest location value.
     doAssert frontier.len != 0
     frontier.mapIt(it.low).min
 
