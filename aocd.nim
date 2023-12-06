@@ -96,7 +96,7 @@ proc printResults(day: int, answers: OrderedTable[int, string], time: Duration) 
   echo "Day " & $day
   for partNum, answer in answers.pairs:
     echo fmt" Part {partNum}: {answer}"
-  echo fmt" Time: {time.inMilliseconds:.4} ms"
+  echo fmt" Time: {time}"
 
 template timed(code: untyped): Duration =
   block:
