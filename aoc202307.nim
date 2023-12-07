@@ -1,10 +1,9 @@
 import aocd
-import unicode except strip
-import std/[algorithm, strformat, strutils, strscans, sequtils, re, intsets, unittest]
+import std/[tables, algorithm, strformat, strutils, strscans, sequtils, re, unittest]
 
-const order = """AKQJT98765432"""
+const order = """AKQJT98765432*"""
 
-func tr(c: char): char =
+func tr1(c: char): char =
   case c
   of 'T': 'A'
   of 'J': 'B'
@@ -13,14 +12,16 @@ func tr(c: char): char =
   of 'A': 'E'
   else: c
 
-func rt(c: char): char =
+func tr2(c: char): char =
   case c
-  of 'A': 'T'
-  of 'B': 'J'
-  of 'C': 'Q'
-  of 'D': 'K'
-  of 'E': 'A'
+  of 'T': 'A'
+  of 'J': '*'
+  of 'Q': 'C'
+  of 'K': 'D'
+  of 'A': 'E'
   else: c
+
+var tr = tr1
 
 const example1 = """
 32T3K 765
@@ -30,86 +31,123 @@ KTJJT 220
 QQQJA 483
 """
 
-const order1 = """
-32T3K 765
-KTJJT 220
-KK677 28
-T55J5 684
-QQQJA 483
-"""
-
 type
   Hand = tuple[cards: array[5, char], bid: int]
+const
+  FiveOfAKind = 7
+  FourOfAKind = 6
+  FullHouse = 5
+  ThreeOfAKind = 4
+  TwoPairs = 3
+  OnePair = 2
+  HighCard = 1
 
 func `$`(h: Hand): string =
   let (cards, bid) = h
-  return fmt"{cards.map(rt).join} {bid}"
+  return fmt"{cards.join} {bid}"
+
+proc toHand(cards: string): Hand =
+  let (ok, c1, c2, c3, c4, c5) = cards.scanTuple("$c$c$c$c$c$.")
+  doAssert ok
+  return (cards: [c1, c2, c3, c4, c5], bid: 0)
 
 proc score(h: Hand): int =
-  let cards = h.cards.sorted
-  let (a, b, c, d, e) = (cards[0], cards[1], cards[2], cards[3], cards[4])
+  # Can no longer trust sorted due to the wildcard...
+  var counts: Table[char, int] = initTable[char, int]()
+  for c in h.cards:
+    counts[c.tr] = 0
+  for c in h.cards:
+    counts[c.tr] += 1
+  let jokers = counts.getOrDefault('*', 0)
+  counts.del('*')
+  let cardCounts = counts.values.toSeq
+
   # Five of a kind
-  if a == b and b == c and c == d and d == e:  return 7
+  if jokers == 5 or cardCounts.anyIt(it >= 5 - jokers):
+    return FiveOfAKind
   # Four of a kind
-  if (a == b or d == e) and b == c and c == d:  return 6
+  if cardCounts.anyIt(it >= 4 - jokers):
+    return FourOfAKind
   # Full house, 3 + 2
-  if a == b and b == c and d == e:  return 5
-  if a == b and c == d and c == e:  return 5
+  if 3 in cardCounts and 2 in cardCounts:
+    return FullHouse
+  if jokers == 1 and 3 in cardCounts:
+    return FullHouse
+  if jokers == 1 and cardCounts.countIt(it == 2) == 2:
+    return FullHouse
+  if jokers == 2 and 2 in cardCounts:
+    return FullHouse
   # Three of a kind, 3
-  if a == b and b == c:  return 4
-  if b == c and c == d:  return 4
-  if c == d and d == e:  return 4
+  if cardCounts.anyIt(it >= 3 - jokers):
+    return ThreeOfAKind
   # Two pairs, 2 + 2
-  if a == b and c == d:  return 3
-  if a == b and d == e:  return 3
-  if b == c and d == e:  return 3
+  if cardCounts.countIt(it == 2) == 2:
+    return TwoPairs
+  if jokers >= 1 and 2 in cardCounts:
+    return TwoPairs
   # One pair, 2
-  if a == b:  return 2
-  if b == c:  return 2
-  if c == d:  return 2
-  if d == e:  return 2
+  if jokers >= 1 or 2 in cardCounts:
+    return OnePair
   # High card
-  return 0
+  return HighCard
 
 proc cmp(a: Hand, b: Hand): int =
   if (let (sa, sb) = (score(a), score(b)); sa != sb):
     return cmp(sa, sb)
   for i in 0..4:
-    if a.cards[i] != b.cards[i]:
-      return cmp((a.cards[i]), (b.cards[i]))
+    let ac = a.cards[i].tr
+    let bc = b.cards[i].tr
+    if ac != bc:
+      return cmp(ac, bc)
   return 0
 
 day 7:
-  part 1:
-    let hands = input.strip.splitLines.map do (line: string) -> Hand:
-      let (ok, c1, c2, c3, c4, c5, bid) = line.scanTuple("$c$c$c$c$c $i$.")
-      doAssert ok
-      (cards: [c1.tr, c2.tr, c3.tr, c4.tr, c5.tr], bid: bid)
+  let hands = input.strip.splitLines.map do (line: string) -> Hand:
+    let (ok, c1, c2, c3, c4, c5, bid) = line.scanTuple("$c$c$c$c$c $i$.")
+    doAssert ok
+    (cards: [c1, c2, c3, c4, c5], bid: bid)
 
+  part 1:
+    tr = tr1
     result = 0
     for rank, hand in hands.sorted(cmp):
-      echo fmt"{rank + 1}: {hand}"
       result += (rank + 1) * hand.bid
 
   part 2:
-    42
+    tr = tr2
+    result = 0
+    for rank, hand in hands.sorted(cmp):
+      result += (rank + 1) * hand.bid
 
   # 247090697 is too high
-  verifyPart(1, 6440)
-  verifyPart(2, 42)
+  verifyPart(1, 245794640)
+  # 247282879, 245749785 is too low
+  # 247917290 is too high
+  verifyPart(2, 247899149)
 
 block unittests:
-  let fiveOfAKind = (cards: ['A'.tr, 'A'.tr, 'A'.tr, 'A'.tr, 'A'.tr], bid: 1)
-  let fullHouse = (cards: ['A'.tr, 'K'.tr, 'A'.tr, 'K'.tr, 'A'.tr], bid: 1)
+  let fiveOfAKind = (cards: ['A', 'A', 'A', 'A', 'A'], bid: 1)
+  let fullHouse = (cards: ['A', 'K', 'A', 'K', 'A'], bid: 1)
   let threeOfAKind = (cards: ['2', '3', '8', '8', '8'], bid: 1)
-  let twoPairs = (cards: ['A'.tr, 'K'.tr, 'A'.tr, 'K'.tr, 'Q'.tr], bid: 1)
-  let kingHigh = (cards: ['K'.tr, 'Q'.tr, 'J'.tr, 'T'.tr, '9'], bid: 1)
-  let tenHigh = (cards: ['T'.tr, '9', 'A'.tr, '7', '6'], bid: 1)
+  let twoPairs = (cards: ['A', 'K', 'A', 'K', 'Q'], bid: 1)
+  let kingHigh = (cards: ['K', 'Q', 'J', 'T', '9'], bid: 1)
+  let tenHigh = (cards: ['T', '9', 'A', '7', '6'], bid: 1)
+
+  tr = tr2
 
   check score(fiveOfAKind) == 7
+  check score((cards: ['A', 'A', 'A', 'A', '*'], bid: 1)) == 7
+  check score((cards: ['*', 'A', 'A', 'A', '*'], bid: 1)) == 7
+  check score((cards: ['*', 'A', '*', 'A', '*'], bid: 1)) == 7
+  check score((cards: ['*', '*', '*', 'A', '*'], bid: 1)) == 7
+  check score((cards: ['*', '*', '*', '*', '*'], bid: 1)) == 7
   check score(fullHouse) == 5
+  check score((cards: ['*', 'K', 'A', 'K', 'A'], bid: 1)) == 5
+  check score((cards: ['*', '*', 'A', 'K', 'A'], bid: 1)) == 5
   check score(twoPairs) == 3
   check score(threeOfAKind) == 4
+
+  check score("KK677".toHand) == 3
 
   let fiveHigh = (cards: ['5', '4', '3', '2', '2'], bid: 1)
   let fourHigh = (cards: ['4', '5', '3', '2', '2'], bid: 1)
@@ -123,4 +161,4 @@ block unittests:
   check cmp(fiveHigh, fourHigh) == 1
   check cmp(fourHigh, fiveHigh) == -1
   check cmp(fiveHigh, fiveHigh) == 0
-  check cmp(threeOfAKind, (cards: ['2', '3', 'J'.tr, 'K'.tr, '3'], bid: 2)) == 1
+  check cmp(threeOfAKind, (cards: ['2', '3', 'J', 'K', '3'], bid: 2)) == 1
