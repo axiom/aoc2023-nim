@@ -44,13 +44,13 @@ func encode(str: string): Address =
     result = (result shl 8) or v
 
 func decode(address: Address): char =
-  let x: range[0..255] = address and 0b11111111
+  let x: range[0..255] = address and 0xff
   result = chr(x + '0'.ord)
 
 func fullDecode(address: Address): string =
-  let a: range[0..255] = (address shr 0) and 0b11111111
-  let b: range[0..255] = (address shr 8) and 0b11111111
-  let c: range[0..255] = (address shr 16) and 0b11111111
+  let a: range[0..255] = (address shr 0) and 0xff
+  let b: range[0..255] = (address shr 8) and 0xff
+  let c: range[0..255] = (address shr 16) and 0xff
   [c, b, a].mapIt(chr(it + '0'.ord)).join
 
 check "AAA".encode.decode == 'A'
@@ -79,20 +79,24 @@ check isStart("ZZZ".encode) == false
 day 8:
   let xlines = input.strip.splitLines
   let instructions = xlines[0]
-  var cursors: seq[Address] = @[]
-  var starts: seq[Address] = @[]
-  var graph = initTable[Address, Node]()
+  var
+    cursors: seq[Address] = @[]
+    starts: seq[Address] = @[]
+    targets: seq[Address] = @[]
+    graph = initTable[Address, Node]()
   for line in xlines[2..^1]:
     let (ok, a, l, r) = line.scanTuple("$+ = ($+, $+)$.")
     doAssert ok
     graph[encode(a)] = (left: encode(l), right: encode(r))
-    if a[2] == 'A':
+    if a.encode.isStart:
       cursors.add encode(a)
       starts.add encode(a)
+    if a.encode.isEnd:
+      targets.add encode(a)
 
   part 1:
-    let start = "AAA".encode
-    let target = "ZZZ".encode
+    let start = starts[0]
+    let target = targets[0]
 
     var steps = 0
     var ip = 0
