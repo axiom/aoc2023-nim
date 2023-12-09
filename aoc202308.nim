@@ -48,10 +48,9 @@ day 8:
     graph: Table[Address, Node]
 
   # Build up the graph
-  for line in inputLines[2..^1]:
-    let (ok, a, l, r) = line.scanTuple("$+ = ($+, $+)$.")
-    doAssert ok
-    graph[a] = Node(left: l, right: r)
+  for line in inputLines:
+    if (let (ok, a, l, r) = line.scanTuple("$+ = ($+, $+)$."); ok):
+      graph[a] = Node(left: l, right: r)
 
   part 1:
     var cursor = "AAA"
