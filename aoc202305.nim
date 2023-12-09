@@ -44,7 +44,6 @@ type
 day 5:
   # I checked and non of the mappings overlap.
 
-  let inputLines = input.strip.splitLines
   var mappings: seq[seq[Mapping]] = @[]
 
   # First line is special, it contains the seeds.

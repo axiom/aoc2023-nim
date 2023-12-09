@@ -28,13 +28,13 @@ check combine(@[1, 2, 3]) == 13
 
 day 1:
   part 1:
-    lines
+    inputLines
       .mapIt(it.filter(isDigit).mapIt(parseInt($it)))
       .map(combine)
       .foldl(a + b)
 
   part 2:
-    lines
+    inputLines
       .map(extractDigits)
       .map(combine)
       .foldl(a + b)

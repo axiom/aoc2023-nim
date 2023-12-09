@@ -1,5 +1,5 @@
 import aocd
-import std/[sugar, tables, algorithm, strformat, strutils, strscans, sequtils, re, unittest]
+import std/[tables, algorithm, strformat, strutils, strscans, sequtils, re, unittest]
 
 const example1 = """
 32T3K 765

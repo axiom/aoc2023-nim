@@ -23,7 +23,7 @@ func pyramid(input: seq[int]): seq[seq[int]] =
     result.add diff
 
 day 9:
-  let reports = input.strip.splitLines.map(numbers)
+  let reports = inputLines.map(numbers)
 
   part 1:
     reports.foldl(a + b.pyramid.foldl(a + b[^1], 0), 0)

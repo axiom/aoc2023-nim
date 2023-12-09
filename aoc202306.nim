@@ -1,6 +1,5 @@
 import aocd
-import unicode except strip
-import std/[strutils, strformat, math, sequtils, re, intsets, unittest]
+import std/[strutils, sequtils, re, unittest]
 
 const example1 = """
 Time:      7  15   30
@@ -30,7 +29,7 @@ day 6:
     inputInts().solve
 
   part 2:
-    lines.mapIt(it.filter(isDigit).join.extractNumbers).solve
+    inputLines.mapIt(it.filter(isDigit).join.extractNumbers).solve
 
   verifyPart(1, 219849)
   verifyPart(2, 29432455)

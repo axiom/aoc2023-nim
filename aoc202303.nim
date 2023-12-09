@@ -38,7 +38,7 @@ day 3:
     partSum = 0
 
   # Find all the symbols and gears
-  for y, row in lines:
+  for y, row in inputLines:
     for x, c in row:
       if c.isSymbol:
         symbols.incl(encode(y, x))
@@ -46,7 +46,7 @@ day 3:
         gears.incl(encode(y, x))
 
   # Find all parts numbers adjacent to symbols
-  for y, line in lines:
+  for y, line in inputLines:
     var inDigits, wasInDigits = false
     var s, e = 0
 

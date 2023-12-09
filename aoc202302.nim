@@ -5,7 +5,7 @@ import std/[strutils, sequtils, strscans, unittest]
 day 2:
   var possibleGameSum, powerSetSum = 0
 
-  for game in lines:
+  for game in inputLines:
     var red, green, blue = 1
     for color in game.split(",;:".toRunes):
       let (_, balls, color) = color.strip.scanTuple("$i $w$.")

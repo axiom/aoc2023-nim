@@ -42,7 +42,6 @@ type
 
 day 8:
   let
-    inputLines = input.strip.splitLines
     instructions = inputLines[0]
   var
     graph: Table[Address, Node]

@@ -15,7 +15,7 @@ func extractNumbers(input: string): seq[int] =
   input.strip.filterIt(it.isDigit or it == ' ').join.strip.split(re" +").map(parseInt)
 
 day 4:
-  let cards = lines
+  let cards = inputLines
     .mapIt(it.split(":|".toRunes).mapIt(it.extractNumbers))
     .mapIt((winning: it[1].toIntSet, drawn: it[2].toIntSet))
 

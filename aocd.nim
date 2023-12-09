@@ -120,7 +120,7 @@ template day*(day: int, solution: untyped): untyped =
   let time = timed:
     # Prepare some common input formats
     let input {.inject, used.} = input.strip
-    let lines {.inject, used.}: seq[string] = input.splitLines
+    let inputLines {.inject, used.}: seq[string] = input.splitLines
     proc inputInts(): seq[seq[int]] {.inject, used.} = input.splitLines.mapIt(it.findAll(re"\d+").map(parseInt))
 
     template part(partNum: int, answer: untyped): untyped =
