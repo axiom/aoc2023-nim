@@ -1,7 +1,7 @@
 import aocd
 import std/[strutils, sequtils, re, unittest]
 
-const example1 = """
+const example1 {.used.} = """
 Time:      7  15   30
 Distance:  9  40  200
 """

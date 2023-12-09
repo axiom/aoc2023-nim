@@ -1,7 +1,7 @@
 import aocd
 import std/[deques, strformat, strscans, strutils, sequtils, unittest]
 
-const example1 = """
+const example1 {.used.} = """
 seeds: 79 14 55 13
 
 seed-to-soil map:

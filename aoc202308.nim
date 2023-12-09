@@ -1,7 +1,7 @@
 import aocd
 import std/[strutils, math, strscans, tables, sequtils, unittest]
 
-const example1 = """
+const example1 {.used.} = """
 RL
 
 AAA = (BBB, CCC)
@@ -13,7 +13,7 @@ GGG = (GGG, GGG)
 ZZZ = (ZZZ, ZZZ)
 """
 
-const example2 = """
+const example2 {.used.} = """
 LLR
 
 AAA = (BBB, BBB)
@@ -21,7 +21,7 @@ BBB = (AAA, ZZZ)
 ZZZ = (ZZZ, ZZZ)
 """
 
-const example3 = """
+const example3 {.used.} = """
 LR
 
 11A = (11B, XXX)

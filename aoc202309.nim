@@ -1,7 +1,7 @@
 import aocd
 import std/[strutils, sequtils, unittest]
 
-const example1 = """
+const example1 {.used.} = """
 0 3 6 9 12 15
 1 3 6 10 15 21
 10 13 16 21 30 45

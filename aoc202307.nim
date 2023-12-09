@@ -1,7 +1,7 @@
 import aocd
 import std/[tables, algorithm, strformat, strutils, strscans, sequtils, re, unittest]
 
-const example1 = """
+const example1 {.used.} = """
 32T3K 765
 T55J5 684
 KK677 28
@@ -105,7 +105,7 @@ let
   cmp2 = cmpF(tr2)
 
 day 7:
-  let hands = input.strip.splitLines.map do (line: string) -> Hand:
+  let hands = inputLines.map do (line: string) -> Hand:
     let (ok, c1, c2, c3, c4, c5, bid) = line.scanTuple("$c$c$c$c$c $i$.")
     doAssert ok
     (cards: [c1, c2, c3, c4, c5], bid: bid)

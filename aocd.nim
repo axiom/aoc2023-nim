@@ -121,7 +121,7 @@ template day*(day: int, solution: untyped): untyped =
     # Prepare some common input formats
     let input {.inject, used.} = input.strip
     let inputLines {.inject, used.}: seq[string] = input.splitLines
-    proc inputInts(): seq[seq[int]] {.inject, used.} = input.splitLines.mapIt(it.findAll(re"\d+").map(parseInt))
+    proc inputInts(): seq[seq[int]] {.inject, used.} = input.splitLines.mapIt(it.findAll(re"-?\d+").map(parseInt))
 
     template part(partNum: int, answer: untyped): untyped =
       block:
