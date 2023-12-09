@@ -1,5 +1,5 @@
 import aocd
-import std/[strutils, re, strscans, tables, sequtils, unittest]
+import std/[strutils, sequtils, unittest]
 
 const example1 = """
 0 3 6 9 12 15
@@ -7,58 +7,29 @@ const example1 = """
 10 13 16 21 30 45
 """
 
-proc extractNumbers(input: string): seq[int] =
-  input.findAll(re"-?\d+").map(parseInt)
+proc numbers(input: string): seq[int] =
+  input.splitWhitespace.map(parseInt)
+
+func calculateDiff(input: seq[int]): seq[int] =
+  for i in 1..input.high:
+    result.add(input[i] - input[i - 1])
+
+func pyramid(input: seq[int]): seq[seq[int]] =
+  result.add input
+  while true:
+    let diff = calculateDiff result[^1]
+    if not diff.anyIt(it != 0):
+      break
+    result.add diff
 
 day 9:
-  let numberLines = input.strip.splitLines.map(extractNumbers)
+  let reports = input.strip.splitLines.map(numbers)
 
   part 1:
-    result = 0
-    for nums in numberLines:
-      var stack = @[nums]
-
-      block buildup:
-        var keepGoing = true
-        while keepGoing:
-          let line = stack[^1]
-          var diff: seq[int]
-          keepGoing = false
-          for i in 1..line.high:
-            diff.add(line[i] - line[i - 1])
-            keepGoing = true
-          if keepGoing:
-            stack.add diff
-
-      var x = 0
-      while stack.len > 0:
-        x = x + (stack.pop)[^1]
-      result += x
+    reports.foldl(a + b.pyramid.foldl(a + b[^1], 0), 0)
 
   part 2:
-    result = 0
-    for nums in numberLines:
-      var stack = @[nums]
+    reports.foldl(a + b.pyramid.mapIt(it[0]).foldr(a - b), 0)
 
-      block buildup:
-        var keepGoing = true
-        while keepGoing:
-          let line = stack[^1]
-          var diff: seq[int]
-          keepGoing = false
-          for i in 1..line.high:
-            diff.add(line[i] - line[i - 1])
-            keepGoing = true
-          if keepGoing:
-            stack.add diff
-
-      var x = 0
-      while stack.len > 0:
-        x = (stack.pop)[0] - x
-      echo x
-      result += x
-
-  # 2658601764 is too high
   verifyPart(1, 1921197370)
-  # 20942 is too high
   verifyPart(2, 1124)
