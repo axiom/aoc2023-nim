@@ -1,5 +1,6 @@
 import aocd
 import std/[strutils, sets, tables, sequtils, unittest]
+import pixie
 
 type
   Grid = seq[string]
@@ -39,12 +40,25 @@ const fancyChars = {
   'J': "╯", 'L': "╰",
   '|': "│", '-': "─",
   '.': " ", 'S': "S",
-  'O': " ", 'I': "█"
+  'O': "#", 'I': "█"
 }.toTable
+
+func colored(text, color: string): string =
+  ## Color some text using ANSI escape codes.
+  "\x1b[38;5;" & color & "m" & text & "\x1b[0m"
+
+func blue(text: string): string = colored(text, "4")
+func red(text: string): string = colored(text, "1")
+func cyan(text: string): string = colored(text, "3")
 
 proc fancy(c: char): string =
   ## Replace input box symbols with fancier versions.
-  fancyChars.getOrDefault(c, $c)
+  let x = fancyChars.getOrDefault(c, $c)
+  case c:
+    of '|', '-', 'F', '7', 'J', 'L': return cyan(x)
+    of 'O': return red(x)
+    of 'I': return blue(x)
+    else: return x
 
 day 10:
   # Parse and store the input
@@ -120,6 +134,41 @@ day 10:
       for c in 0..cleanedGrid[r].high:
         stdout.write fancy cleanedGrid[r][c]
       echo ""
+
+    # Try to create a visualization using pixie library
+    let
+      sq = 10.0
+      image = newImage(sq.int * grid.len, sq.int * grid.len)
+      ctx = newContext(image)
+      sprite = readImage("sprite.png")
+
+    image.fill("black")
+
+    for r in 0..cleanedGrid.high:
+      for c in 0..cleanedGrid[r].high:
+        let
+          x = c.float32 * sq
+          y = r.float32 * sq
+          g = cleanedGrid[r][c]
+
+        case g:
+          of 'I': ctx.fillStyle = "blue"
+          of 'O': ctx.fillStyle = "red"
+          else: ctx.fillStyle = "yellow"
+
+        case g:
+          of 'F': ctx.drawImage(sprite,  0,  0, 10, 10, x, y, sq, sq)
+          of '-': ctx.drawImage(sprite, 10,  0, 10, 10, x, y, sq, sq)
+          of '7': ctx.drawImage(sprite, 20,  0, 10, 10, x, y, sq, sq)
+          of '|': ctx.drawImage(sprite,  0, 10, 10, 10, x, y, sq, sq)
+          of 'L': ctx.drawImage(sprite,  0, 20, 10, 10, x, y, sq, sq)
+          of 'J': ctx.drawImage(sprite, 20, 20, 10, 10, x, y, sq, sq)
+          of 'I': ctx.drawImage(sprite, 10, 10, 10, 10, x, y, sq, sq)
+          of 'O': ctx.drawImage(sprite, 10, 30, 10, 10, x, y, sq, sq)
+          of 'S': ctx.drawImage(sprite, 30, 10, 10, 10, x, y, sq, sq)
+          else: ctx.fillRoundedRect(rect(vec2(x.float32, y.float32), vec2(sq.float32, sq.float32)), 2.0)
+
+    image.writeFile("day10.png")
 
   verifyPart(1, 6907)
   verifyPart(2, 541)
