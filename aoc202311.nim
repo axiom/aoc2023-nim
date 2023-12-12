@@ -17,7 +17,7 @@ day 11:
         popX.incl x
         stars.add Pos(x: x, y: y)
 
-  proc pairWiseDistances(expansion: int): int =
+  proc pairwiseDistances(expansion: int): int =
     result = 0
     for (i, sa) in stars.pairs:
       for j in i..stars.high:
@@ -29,10 +29,10 @@ day 11:
         inc result, expansion * (sa.y..sb.y).countIt(it notin popY)
 
   part 1:
-    pairWiseDistances(1)
+    pairwiseDistances(1)
 
   part 2:
-    pairWiseDistances(999_999)
+    pairwiseDistances(999_999)
 
   verifyPart(1, 9556896)
   verifyPart(2, 685038186836)
