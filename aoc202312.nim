@@ -1,13 +1,13 @@
 import aocd
-import std/[algorithm, strutils, strformat, sets, sequtils, unittest]
+import std/[math, algorithm, strutils, strformat, sets, sequtils, unittest]
 
 const example1 {.used.} = """
-???.### 1,1,3
-.??..??...?##. 1,1,3
-?#?#?#?#?#?#?#? 1,3,1,6
-????.#...#... 4,1,1
-????.######..#####. 1,6,5
-?###???????? 3,2,1
+???.###              1,1,3
+.??..??...?##.       1,1,3
+?#?#?#?#?#?#?#?      1,3,1,6
+????.#...#...        4,1,1
+????.######..#####.  1,6,5
+?###????????         3,2,1
 """
 
 type
@@ -23,47 +23,52 @@ const
   Damaged = '#'
   Unknown = '?'
 
-func permutations(r: Record): int =
-  return r.record.countIt(it == Unknown)
+type
+  State = enum
+    Opr, Dmg, Unk
 
-iterator fit(record: string, damage: int, startingAt: int): Match =
-  if damage <= 0:
-    yield Match(record: record, s: 0, l: 0)
-  else:
-    var seen = initHashSet[Match]()
-    # Recursively fit damage into every possible spot of record?
-    # Try each position.
-    for i in startingAt..record.len - damage:
-      let j = i + damage
+const
+  States = {'.', '#', '?'}
 
-      if i - 1 >= 0 and record[i - 1] == Damaged:
-        continue
-      if j < record.len and record[j] == Damaged:
-        continue
+func unfold(record: Record): Record =
+  let newRecord = [record.record, record.record, record.record, record.record, record.record].join($Unknown)
+  let newDamageRuns = cycle(record.damageRuns, 5)
+  Record(record: newRecord, damageRuns: newDamageRuns)
 
-      if record[i..<j].allIt(it == Unknown or it == Damaged):
-        let prefix = if i > 0: record[0..<i-1] & $Operational else: ""
-        let suffix = if j <= record.high: $Operational & record[j+1..^1] else: ""
-        let candidate = prefix & repeat(Damaged, damage) & suffix
-        let match = Match(record: candidate, s: i, l: damage)
-        if match notin seen:
-          seen.incl match
-          yield match
+iterator fit(record: string, damage: int, startingAt: int, reservedDamage: int): Match =
+  let h = min(record.len - damage, record.len - reservedDamage - damage)
+  var j = 0
+  for i in startingAt..h:
+    j = i + damage
 
-iterator fitt(record: string, damage: openArray[int]): string =
+    if i - 1 >= 0 and record[i - 1] == Damaged:
+      continue
+    elif j < record.len and record[j] == Damaged:
+      continue
+
+    if record[i..<j].allIt(it == Unknown or it == Damaged):
+      let prefix = if i > 0: record[0..<i-1] & $Operational else: ""
+      let suffix = if j <= record.high: $Operational & record[j+1..^1] else: ""
+      yield Match(record: prefix & repeat(Damaged, damage) & suffix, s: i, l: damage)
+
+proc fitt(record: string, damage: openArray[int]): int =
   let totalDamage = damage.toSeq.foldl(a + b)
   var candidates = initHashSet[Match]()
+  var coveredDamage = 0
   var damage = damage.toSeq.reversed
 
   candidates.incl Match(record: record, s: 0, l: 0)
 
   while damage.len > 0 and candidates.len > 0:
+    # echo fmt"Damage: {damage.len}, candidates: {candidates.card}"
     let d = damage.pop
     var dc: HashSet[Match]
+    let remainingDamage = totalDamage - coveredDamage - d
 
     for mp in candidates:
-      for m in fit(mp.record, d, mp.s + mp.l):
+      for m in fit(mp.record, d, mp.s + mp.l, remainingDamage):
         dc.incl m
+    coveredDamage += d
     candidates = dc
 
   var cleaned = initHashSet[string]()
@@ -71,15 +76,17 @@ iterator fitt(record: string, damage: openArray[int]): string =
     if m.record.countIt(it == Damaged) == totalDamage: # and '?' notin candidate:
       cleaned.incl m.record.replace(Unknown, Operational)
 
-  for c in cleaned:
-    yield c
+  return cleaned.card
 
-check fitt("???.###", [1, 1, 3]).toSeq.len == 1
-check fitt(".??..??...?##.", [1, 1, 3]).toSeq.len == 4
-check fitt("?#?#?#?#?#?#?#?", [1, 3, 1, 6]).toSeq.len == 1
-check fitt("????.#...#...", [4, 1, 1]).toSeq.len == 1
-check fitt("????.######..#####.", [1, 6, 5]).toSeq.len == 4
-check fitt("?###????????", [3, 2, 1]).toSeq.len == 10
+proc fittt(record: Record): int =
+  fitt(record.record, record.damageRuns)
+
+# check fittt(Record(record: "???.###", damageRuns: @[1, 1, 3]).unfold).toSeq.len == 1
+# check fitt(".??..??...?##.", [1, 1, 3]).toSeq.len == 4
+# check fitt("?#?#?#?#?#?#?#?", [1, 3, 1, 6]).toSeq.len == 1
+# check fitt("????.#...#...", [4, 1, 1]).toSeq.len == 1
+# check fitt("????.######..#####.", [1, 6, 5]).toSeq.len == 4
+# check fitt("?###????????", [3, 2, 1]).toSeq.len == 10
 
 # for ma in fit("?###????????", 3, 0):
 #   echo fmt"{ma} -> "
@@ -90,28 +97,34 @@ check fitt("?###????????", [3, 2, 1]).toSeq.len == 10
 #       # for de in fit(mc.record, 0, mc.s + mc.l):
 #       #   echo fmt"{ma} -> {mb} -> {mc} -> {de}"
 
-for line in fitt("?###????????", [3, 2, 1]).toSeq.sorted:
-  echo line
+# for line in fitt("?###????????", [3, 2, 1]).toSeq.sorted:
+#   echo line
 
 day 12:
   var springRecords: seq[Record]
-  for line in input.strip.splitLines:
-    let parts = line.split(" ")
+  for line in example1.strip.splitLines:
+    let parts = line.splitWhitespace
     let runs = parts[1].split(",").map(parseInt)
-    springRecords.add(Record(record: parts[0], damageRuns: runs))
+    springRecords.add(unfold Record(record: parts[0], damageRuns: runs))
 
-  var sum = 0
-  for record in springRecords:
-    sum += fitt(record.record, record.damageRuns).toSeq.len
-  echo sum
+  # Do the difficult ones first
+  springRecords = springRecords.sortedByIt:
+    -it.record.countIt(it == Unknown)
+
+  var answers = newSeq[int](input.strip.splitLines.toSeq.len)
+  let count = springRecords.len
+  for r in 0..springRecords.high:
+    let m = springRecords[r]
+    # echo "Working on " & $springRecords[r]
+    answers[r] = fittt(m)
+    echo fmt"{r+1}/{count}: {answers[r]}"
+  var answer1 = answers.toSeq.foldl(a + b)
 
   part 1:
-    result = 0
-      # let fits = fit(record.record, record.damageRuns).toSeq.len
-      # echo fits
+    answer1
 
   part 2:
     0
 
-  verifyPart(1, 21)
+  verifyPart(1, 7460)
   verifyPart(2, 0)
