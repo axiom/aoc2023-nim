@@ -1,5 +1,5 @@
 import aocd
-import std/[math, algorithm, strutils, strformat, sets, sequtils, unittest]
+import std/[tables, heapqueue, strutils, strformat, sets, sequtils, unittest]
 
 const example1 {.used.} = """
 ???.###              1,1,3
@@ -11,120 +11,199 @@ const example1 {.used.} = """
 """
 
 type
+  Nucleotide = enum
+    Operational, Damaged, Unknown
+  Sequence = seq[Nucleotide]
   Record = object
-    record: string
-    damageRuns: seq[int]
-  Match = object
-    record: string
-    s, l: int
+    genome: Sequence
+    sequences: seq[Sequence]
 
-const
-  Operational = '.'
-  Damaged = '#'
-  Unknown = '?'
 
-type
-  State = enum
-    Opr, Dmg, Unk
+# Print data structures
+func `$`(n: Nucleotide): string =
+  case n
+  of Operational: "."
+  of Damaged: "#"
+  of Unknown: "?"
 
-const
-  States = {'.', '#', '?'}
+func `$`(s: Sequence): string =
+  result = s.mapIt($it).join
 
-func unfold(record: Record): Record =
-  let newRecord = [record.record, record.record, record.record, record.record, record.record].join($Unknown)
-  let newDamageRuns = cycle(record.damageRuns, 5)
-  Record(record: newRecord, damageRuns: newDamageRuns)
 
-iterator fit(record: string, damage: int, startingAt: int, reservedDamage: int): Match =
-  let h = min(record.len - damage, record.len - reservedDamage - damage)
-  var j = 0
-  for i in startingAt..h:
-    j = i + damage
+# Parse input and build up data structures
+func damagedSequence(run: int): Sequence =
+  result = newSeqWith[Nucleotide](run + 2, Damaged)
+  result[0] = Operational
+  result[result.high] = Operational
 
-    if i - 1 >= 0 and record[i - 1] == Damaged:
+const CharToNucleotide = {
+  '.': Operational,
+  '#': Damaged,
+  '?': Unknown,
+}.toTable
+
+func toSequence(s: string): Sequence =
+  result.add Operational
+  result = result.concat s.mapIt(CharToNucleotide[it])
+  result.add Operational
+
+
+# Solve alignment problem
+type Key = object
+  dmg, pos: int
+
+func damage(sequence: Sequence): int =
+  sequence.len - 2
+
+proc fits(genome: Sequence, sequence: Sequence): bool =
+  for i in 0..sequence.high:
+    if genome[i] == Unknown:
       continue
-    elif j < record.len and record[j] == Damaged:
-      continue
+    if genome[i] != sequence[i]:
+      return false
+  true
 
-    if record[i..<j].allIt(it == Unknown or it == Damaged):
-      let prefix = if i > 0: record[0..<i-1] & $Operational else: ""
-      let suffix = if j <= record.high: $Operational & record[j+1..^1] else: ""
-      yield Match(record: prefix & repeat(Damaged, damage) & suffix, s: i, l: damage)
+type SolutionTable = seq[seq[int]]
 
-proc fitt(record: string, damage: openArray[int]): int =
-  let totalDamage = damage.toSeq.foldl(a + b)
-  var candidates = initHashSet[Match]()
-  var coveredDamage = 0
-  var damage = damage.toSeq.reversed
+proc buildTable(genome: Sequence, sequences: seq[Sequence]): SolutionTable =
+  result = newSeqWith[seq[int]](sequences.len, newSeqWith[int](genome.len, 0))
 
-  candidates.incl Match(record: record, s: 0, l: 0)
+  # var seen: HashSet[Key]
+  # Build up table row for row.
+  for y in 0..sequences.high:
+    let sequence = sequences[y]
+    for x in 0..genome.len - sequences[y].len:
+      let genomPart = genome[x..x + sequence.len - 1]
+      if genomPart.fits sequence:
+        result[y][x] = x + sequence.len - 1
 
-  while damage.len > 0 and candidates.len > 0:
-    # echo fmt"Damage: {damage.len}, candidates: {candidates.card}"
-    let d = damage.pop
-    var dc: HashSet[Match]
-    let remainingDamage = totalDamage - coveredDamage - d
+  # Clear impossible from from the next row
+  for y in 0..result.high-1:
+    var minPos = result[y].max
+    for x in 0..result[y].high:
+      if result[y][x] == 0:
+        continue
+      minPos = min(minPos, result[y][x])
+    for x in 0..<minPos:
+      for yy in y+1..result.high:
+        result[yy][x] = 0
 
-    for mp in candidates:
-      for m in fit(mp.record, d, mp.s + mp.l, remainingDamage):
-        dc.incl m
-    coveredDamage += d
-    candidates = dc
+type StackKey = object
+  i: int
+  minPos: int
+  path: seq[int]
 
-  var cleaned = initHashSet[string]()
-  for m in candidates:
-    if m.record.countIt(it == Damaged) == totalDamage: # and '?' notin candidate:
-      cleaned.incl m.record.replace(Unknown, Operational)
+func `<`(a, b: StackKey): bool =
+  a.i < b.i
 
-  return cleaned.card
+proc countSolutions(table: SolutionTable, sequences: seq[Sequence], lessThan: int): int =
+  # echo ""
+  # for y in 0..table.high:
+  #   if y == 0:
+  #     for x in 0..table[y].high:
+  #       stdout.write fmt"{x:-2} "
+  #     echo ""
+  #   for x in 0..table[y].high:
+  #     stdout.write fmt"{table[y][x]:-2} "
+  #   echo ""
 
-proc fittt(record: Record): int =
-  fitt(record.record, record.damageRuns)
+  if table.len == 0 or sequences.len == 0:
+    return 1
 
-# check fittt(Record(record: "???.###", damageRuns: @[1, 1, 3]).unfold).toSeq.len == 1
-# check fitt(".??..??...?##.", [1, 1, 3]).toSeq.len == 4
-# check fitt("?#?#?#?#?#?#?#?", [1, 3, 1, 6]).toSeq.len == 1
-# check fitt("????.#...#...", [4, 1, 1]).toSeq.len == 1
-# check fitt("????.######..#####.", [1, 6, 5]).toSeq.len == 4
-# check fitt("?###????????", [3, 2, 1]).toSeq.len == 10
+  result = 0
+  for y in countdown(table.high, table.low):
+    for x in 0..lessThan:
+      if table[y][x] > 0:
+        result += countSolutions(table[0..^2], sequences[0..^1], x)
 
-# for ma in fit("?###????????", 3, 0):
-#   echo fmt"{ma} -> "
-#   for mb in fit(ma.record, 2, ma.s + ma.l):
-#     echo fmt"{ma} -> {mb}"
-#     for mc in fit(mb.record, 1, mb.s + mb.l):
-#       echo fmt"{ma} -> {mb} -> {mc}"
-#       # for de in fit(mc.record, 0, mc.s + mc.l):
-#       #   echo fmt"{ma} -> {mb} -> {mc} -> {de}"
+  # var paths = initHeapQueue[StackKey]()
+  #
+  # for x in 0..table[0].high:
+  #   let minPos = table[0][x]
+  #   if minPos > 0:
+  #     paths.push(StackKey(i: 1, minPos: minPos, path: @[x]))
+  #
+  # for y in 1..table.high:
+  #   var newPaths = initHeapQueue[StackKey]()
+  #   while paths.len > 0:
+  #     let path = paths.pop
+  #
+  #     for x in path.minPos..table[y].high:
+  #       let minPos = table[y][x]
+  #       if minPos > 0:
+  #         let nextPath = StackKey(i: path.i + 1, minPos: minPos, path: path.path & @[x])
+  #         # echo nextPath
+  #         newPaths.push(nextPath)
+  #
+  #   paths = newPaths
+  #
+  # while paths.len > 0:
+  #   let path = paths.pop
+  #   result += 1
+  #   echo path.path
 
-# for line in fitt("?###????????", [3, 2, 1]).toSeq.sorted:
-#   echo line
+proc solve(genome: Sequence, sequences: seq[Sequence]): int =
+  buildTable(genome, sequences).countSolutions(sequences, genome.high)
+
+# Check the examples provided
+check solve(toSequence("?"), @[1].map(damagedSequence)) == 1
+check solve(toSequence("??"), @[1].map(damagedSequence)) == 2
+check solve(toSequence("?.?"), @[1].map(damagedSequence)) == 2
+check solve(toSequence("?.?"), @[1, 1].map(damagedSequence)) == 1
+check solve(toSequence("..."), @[1, 1].map(damagedSequence)) == 0
+check solve(toSequence("..."), @[1].map(damagedSequence)) == 0
+check solve(toSequence("###"), @[1].map(damagedSequence)) == 0
+check solve(toSequence("###"), @[3].map(damagedSequence)) == 1
+check solve(toSequence("###"), @[4].map(damagedSequence)) == 0
+check solve(toSequence(".............."), @[1,1,3].map(damagedSequence)) == 0
+check solve(toSequence(".??..??...?##."), @[1,1,3].map(damagedSequence)) == 4
+check solve(toSequence("???.###"), @[1,1,3].map(damagedSequence)) == 1
+check solve(toSequence("?#?#?#?#?#?#?#?"), @[1,3,1,6].map(damagedSequence)) == 1
+check solve(toSequence("????.#...#..."), @[4,1,1].map(damagedSequence)) == 1
+check solve(toSequence("????.######..#####."), @[1,6,5].map(damagedSequence)) == 4
+check solve(toSequence("?###????????"), @[3,2,1].map(damagedSequence)) == 10
+check solve(toSequence("???.###"), @[1,1,3].map(damagedSequence)) == 1
+
+
+func unfold(genome: string, sep: string): string =
+  [genome, genome, genome, genome, genome].join sep
+
+check unfold(".#", "?") == ".#?.#?.#?.#?.#"
 
 day 12:
   var springRecords: seq[Record]
+  var unfoldedRecords: seq[Record]
+
   for line in example1.strip.splitLines:
     let parts = line.splitWhitespace
-    let runs = parts[1].split(",").map(parseInt)
-    springRecords.add(unfold Record(record: parts[0], damageRuns: runs))
 
-  # Do the difficult ones first
-  springRecords = springRecords.sortedByIt:
-    -it.record.countIt(it == Unknown)
+    # Original sequences
+    block:
+      let genome = parts[0]
+      let sequences = parts[1].split(",").mapIt(it.parseInt.damagedSequence)
+      springRecords.add(Record(genome: genome.toSequence, sequences: sequences))
 
-  var answers = newSeq[int](input.strip.splitLines.toSeq.len)
-  let count = springRecords.len
-  for r in 0..springRecords.high:
-    let m = springRecords[r]
-    # echo "Working on " & $springRecords[r]
-    answers[r] = fittt(m)
-    echo fmt"{r+1}/{count}: {answers[r]}"
-  var answer1 = answers.toSeq.foldl(a + b)
+    # Unfold the sequenes
+    block:
+      let genome = parts[0].unfold("?")
+      let sequences = parts[1].unfold(",").split(",").mapIt(it.parseInt.damagedSequence)
+      unfoldedRecords.add(Record(genome: genome.toSequence, sequences: sequences))
 
   part 1:
-    answer1
+    # return 7460
+    result = 0
+    for org in springRecords:
+      let solutions = solve(org.genome, org.sequences)
+      # echo fmt"{org.genome} {org.sequences} -> {solutions}"
+      result += solutions
 
   part 2:
-    0
+    # return 525152
+    result = 0
+    for org in unfoldedRecords:
+      let solutions = solve(org.genome, org.sequences)
+      # echo fmt"{org.genome} {org.sequences} -> {solutions}"
+      result += solutions
 
   verifyPart(1, 7460)
-  verifyPart(2, 0)
+  verifyPart(2, 525152)
