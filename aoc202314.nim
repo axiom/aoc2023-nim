@@ -8,102 +8,99 @@ const
   Fixed = '#'
   Rolls = 'O'
 
-func isRock(c: char): bool =
-  c == Rolls
-
 func slideNorth(grid: var Grid) =
   for x in 0..grid[0].high:
     var
-      ystop = 0
-      yroll = 0
+      stop = 0
+      roll = 0
 
     while true:
       # Find the next spot to roll a rock into.
-      while ystop < grid.high:
-        case grid[ystop][x]:
+      while stop < grid.high:
+        case grid[stop][x]:
         of Blank:
           break
         of Rolls:
-          inc ystop
+          inc stop
         of Fixed:
-          inc ystop
+          inc stop
         else:
           assert false
 
-      yroll = ystop + 1
+      roll = stop + 1
 
       # Find the next rock to roll, and maybe move up the stop cursor if we pass
       # a fixed rock.
-      while yroll <= grid.high:
-        case grid[yroll][x]:
+      while roll <= grid.high:
+        case grid[roll][x]:
         of Blank:
-          inc yroll
+          inc roll
         of Rolls:
           break
         of Fixed:
-          ystop = yroll
-          inc yroll
+          stop = roll
+          inc roll
         else:
           assert false
 
       # Check if we have fallen off.
-      if yroll > grid.high or ystop > grid.high:
+      if roll > grid.high or stop > grid.high:
         break
 
       # Now roll the rock into place.
 
-      if grid[yroll][x].isRock and grid[ystop][x] == Blank:
-        grid[ystop][x] = Rolls
-        grid[yroll][x] = Blank
-        inc ystop
-        inc yroll
+      if grid[roll][x] == Rolls and grid[stop][x] == Blank:
+        grid[stop][x] = Rolls
+        grid[roll][x] = Blank
+        inc stop
+        inc roll
 
 func slideSouth(grid: var Grid) =
   for x in 0..grid[0].high:
     var
-      ystop = grid.high
-      yroll = grid.high
+      stop = grid.high
+      roll = grid.high
 
     while true:
       # Find the next spot to roll a rock into.
-      while ystop > 0:
-        case grid[ystop][x]:
+      while stop > 0:
+        case grid[stop][x]:
         of Blank:
           break
         of Rolls:
-          dec ystop
+          dec stop
         of Fixed:
-          dec ystop
+          dec stop
         else:
           assert false
 
-      yroll = ystop - 1
+      roll = stop - 1
 
       # Find the next rock to roll, and maybe move up the stop cursor if we pass
       # a fixed rock.
-      while yroll >= 0:
-        case grid[yroll][x]:
+      while roll >= 0:
+        case grid[roll][x]:
         of Blank:
-          dec yroll
+          dec roll
         of Rolls:
           break
         of Fixed:
-          ystop = yroll
-          dec yroll
+          stop = roll
+          dec roll
         else:
           assert false
 
       # Check if we have fallen off.
-      if yroll < 0 or ystop < 0:
+      if roll < 0 or stop < 0:
         break
 
       # Now roll the rock into place.
 
-      if grid[yroll][x].isRock and grid[ystop][x] == Blank:
-        grid[ystop][x] = Rolls
-        grid[yroll][x] = Blank
-        dec ystop
-        dec yroll
+      if grid[roll][x] == Rolls and grid[stop][x] == Blank:
+        grid[stop][x] = Rolls
+        grid[roll][x] = Blank
+        dec stop
+        dec roll
 
 func slideEast(grid: var Grid) =
   for y in 0..grid.high:
@@ -146,7 +143,7 @@ func slideEast(grid: var Grid) =
 
       # Now roll the rock into place.
 
-      if grid[y][roll].isRock and grid[y][stop] == Blank:
+      if grid[y][roll] == Rolls and grid[y][stop] == Blank:
         grid[y][stop] = Rolls
         grid[y][roll] = Blank
         dec stop
@@ -194,7 +191,7 @@ func slideWest(grid: var Grid) =
 
       # Now roll the rock into place.
 
-      if grid[y][roll].isRock and grid[y][stop] == Blank:
+      if grid[y][roll] == Rolls and grid[y][stop] == Blank:
         grid[y][stop] = Rolls
         grid[y][roll] = Blank
         inc stop
