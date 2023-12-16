@@ -1,15 +1,17 @@
 import aocd
-import std/[strutils, strformat, strscans, sequtils, sets, tables, unittest]
+import std/[strutils, sequtils, sets, tables, unittest]
 
 type
-  Squer = enum
-    Empty = "."
-    RMirror = "/"
-    LMirror = "\\"
-    VSplit = "|"
-    HSplit = "-"
+  Tile = enum
+    Empty = "·"
+    RMirror = "╱"
+    LMirror = "╲"
+    VSplit = "│"
+    HSplit = "─"
     Energized = "#"
-  Grid = seq[seq[Squer]]
+  Grid = object
+    height, width: int
+    tiles: seq[seq[Tile]]
   Direction = enum
     Up, Down, Left, Right
   Pos = object
@@ -23,14 +25,18 @@ type
     of true: beams: array[2, Beam]
     of false: beam: Beam
 
-const CharMap = {'.': Empty, '/': RMirror, '\\': LMirror, '|': VSplit, '-': HSplit}.toTable
+func `[]`(grid: Grid, pos: Pos): Tile =
+  grid.tiles[pos.y][pos.x]
 
-func at(grid: Grid, pos: Pos): Squer = grid[pos.y][pos.x]
+func `[]=`(grid: var Grid, pos: Pos, tile: Tile) =
+  grid.tiles[pos.y][pos.x] = tile
 
 func contains(grid: Grid, b: Beam): bool =
-  b.pos.y in 0..grid.high and b.pos.x in 0..grid[0].high
+  ## Check if the beam's position is within the grid
+  b.pos.y in 0..<grid.height and b.pos.x in 0..<grid.width
 
 func `->`(p: Pos, d: Direction): Pos =
+  ## Move position in the given direction
   case d
   of Up:    Pos(x: p.x,     y: p.y - 1)
   of Down:  Pos(x: p.x,     y: p.y + 1)
@@ -38,19 +44,25 @@ func `->`(p: Pos, d: Direction): Pos =
   of Right: Pos(x: p.x + 1, y: p.y)
 
 func `->`(b: Beam, d: Direction): Beam =
-  result = Beam(pos: b.pos -> d, dir: d)
+  ## Redirect the beam in the given direction
+  Beam(pos: b.pos -> d, dir: d)
 
 func `=>`(b: Beam, d: Direction): Beams =
-  result = Beams(multiple: false, beam: Beam(pos: b.pos -> d, dir: d))
+  ## Redirect the beam in the given direction
+  Beams(multiple: false, beam: Beam(pos: b.pos -> d, dir: d))
 
-func split(b: Beam, d1: Direction, d2: Direction): Beams =
-  result = Beams(multiple: true, beams: [b -> d1, b -> d2])
+func `=|`(b: Beam, d: Direction): Beams =
+  ## Split the beam from the given direction
+  case d
+  of Left, Right:
+    Beams(multiple: true, beams: [b -> Up, b -> Down])
+  of Up, Down:
+    Beams(multiple: true, beams: [b -> Left, b -> Right])
 
-func `=>`(b: Beam, s: Squer): Beams =
+func `=>`(b: Beam, s: Tile): Beams =
+  ## Divert the beam according to the given tile
   case s
-  of Empty:
-    # Beam just continues on its direction
-    b => b.dir
+  of Empty: b => b.dir
   of RMirror:
     case b.dir
     of Up:    b => Right
@@ -65,68 +77,61 @@ func `=>`(b: Beam, s: Squer): Beams =
     of Right: b => Down
   of VSplit:
     case b.dir
-    of Up, Down: b => b.dir
-    of Left, Right: b.split(Up, Down)
+    of Up, Down:    b => b.dir
+    of Left, Right: b =| b.dir
   of HSplit:
     case b.dir
-    of Up, Down: b.split(Left, Right)
+    of Up, Down:    b =| b.dir
     of Left, Right: b => b.dir
   of Energized:
     assert false
     b => Left
 
-proc shine(grid: Grid, incoming: Beam): BeamPath =
+func shine(grid: Grid, incoming: Beam): BeamPath =
+  ## Shine the incoming beam through the grid
   var beams = @[incoming]
-  var count = 0
   while beams.len > 0:
     let beam = beams.pop
 
-    if beam in result:
-      continue
-
-    # Check if beam has left the grid
-    if beam notin grid:
+    if beam in result or beam notin grid:
       continue
 
     result.incl beam
-    inc count
 
-    let bs = beam => grid.at(beam.pos)
-    case bs.multiple
+    case (let bs = beam => grid[beam.pos]; bs.multiple)
     of true:
-      beams.add(bs.beams[0])
-      beams.add(bs.beams[1])
+      beams.add bs.beams[0]
+      beams.add bs.beams[1]
     of false:
-      beams.add(bs.beam)
+      beams.add bs.beam
 
 func positions(beamPath: BeamPath): HashSet[Pos] =
-  for beam in beamPath:
-    result.incl beam.pos
+  beamPath.mapIt(it.pos).toHashSet
 
-proc bestIncoming(grid: Grid): Beam =
+iterator incomingBeams(grid: Grid): Beam =
+  ## Generate all possible incoming beams.
+  for x in 0..<grid.width:
+    yield Beam(pos: Pos(x: x, y: 0), dir: Down)
+    yield Beam(pos: Pos(x: x, y: grid.height - 1), dir: Up)
+  for y in 0..<grid.height:
+    yield Beam(pos: Pos(x: 0, y: y), dir: Right)
+    yield Beam(pos: Pos(x: grid.width - 1, y: y), dir: Left)
+
+func bestIncomingBeam(grid: Grid): Beam =
   ## Find the best incoming beam producing the most number of energized tiles.
-  var candidates: seq[Beam]
-  for x in 0..grid[0].high:
-    candidates.add(Beam(pos: Pos(x: x, y: 0), dir: Down))
-    candidates.add(Beam(pos: Pos(x: x, y: grid.high), dir: Up))
-  for y in 0..grid.high:
-    candidates.add(Beam(pos: Pos(x: 0, y: y), dir: Right))
-    candidates.add(Beam(pos: Pos(x: grid[0].high, y: y), dir: Left))
-
   var mostEnergized = 0
-  for candidate in candidates:
-    let beamPath = grid.shine(candidate)
-    let positions = beamPath.positions
-    if positions.len > mostEnergized:
-      mostEnergized = positions.len
-      result = candidate
+  for beam in grid.incomingBeams:
+    let energizedPositions = grid.shine(beam).positions.len
+    if energizedPositions > mostEnergized:
+      mostEnergized = energizedPositions
+      result = beam
 
 func overlay(grid: Grid, beamPath: BeamPath, onlyEmpty: bool): Grid =
-  var result = grid
+  var overlayed = grid
   for pos in beamPath.positions:
-    if not onlyEmpty or result[pos.y][pos.x] == Empty:
-      result[pos.y][pos.x] = Energized
-  result
+    if not onlyEmpty or grid[pos] == Empty:
+      overlayed[pos] = Energized
+  overlayed
 
 const example {.used.} = """
 .|...\....
@@ -142,27 +147,34 @@ const example {.used.} = """
 """.strip
 
 func `$`(grid: Grid): string =
-  for row in grid:
-    for squer in row:
-      result &= $squer
+  for y in 0..<grid.height:
+    for x in 0..<grid.width:
+      result &= $grid[Pos(x: x, y: y)]
     result &= "\n"
 
+
 day 16:
-  let puzzle: Grid = input.strip.splitLines.mapIt:
-    it.mapIt:
-      if it in CharMap:
-        CharMap[it]
-      else:
-        assert false
-        Empty
+  const CharMap = {'.': Empty, '/': RMirror, '\\': LMirror, '|': VSplit, '-': HSplit}.toTable
+  let puzzle: Grid = block:
+    var tiles: seq[seq[Tile]]
+    var height, width: int
+    for line in input.strip.splitLines:
+      inc height
+      width = line.len
+      var row: seq[Tile]
+      for x, c in line.pairs:
+        row.add CharMap[c]
+      tiles.add row
+    Grid(height: height, width: width, tiles: tiles)
 
   part 1:
     let beamPath = puzzle.shine Beam(pos: Pos(x: 0, y: 0), dir: Right)
     result = beamPath.positions.len
 
   part 2:
-    let bestBeam = puzzle.bestIncoming
+    let bestBeam = puzzle.bestIncomingBeam
     let beamPath = puzzle.shine(bestBeam)
+    # echo $(puzzle.overlay(beamPath, true))
     result = beamPath.positions.len
 
   verifyPart(1, 7236)
