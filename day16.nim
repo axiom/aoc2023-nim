@@ -103,6 +103,24 @@ func positions(beamPath: BeamPath): HashSet[Pos] =
   for beam in beamPath:
     result.incl beam.pos
 
+proc bestIncoming(grid: Grid): Beam =
+  ## Find the best incoming beam producing the most number of energized tiles.
+  var candidates: seq[Beam]
+  for x in 0..grid[0].high:
+    candidates.add(Beam(pos: Pos(x: x, y: 0), dir: Down))
+    candidates.add(Beam(pos: Pos(x: x, y: grid.high), dir: Up))
+  for y in 0..grid.high:
+    candidates.add(Beam(pos: Pos(x: 0, y: y), dir: Right))
+    candidates.add(Beam(pos: Pos(x: grid[0].high, y: y), dir: Left))
+
+  var mostEnergized = 0
+  for candidate in candidates:
+    let beamPath = grid.shine(candidate)
+    let positions = beamPath.positions
+    if positions.len > mostEnergized:
+      mostEnergized = positions.len
+      result = candidate
+
 func overlay(grid: Grid, beamPath: BeamPath, onlyEmpty: bool): Grid =
   var result = grid
   for pos in beamPath.positions:
@@ -138,15 +156,14 @@ day 16:
         assert false
         Empty
 
-  echo $puzzle
-
   part 1:
     let beamPath = puzzle.shine Beam(pos: Pos(x: 0, y: 0), dir: Right)
-    # echo $(puzzle.overlay(beamPath, false))
     result = beamPath.positions.len
 
   part 2:
-    result = 0
+    let bestBeam = puzzle.bestIncoming
+    let beamPath = puzzle.shine(bestBeam)
+    result = beamPath.positions.len
 
   verifyPart(1, 7236)
-  # verifyPart(2, 246762)
+  verifyPart(2, 7521)
