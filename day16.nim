@@ -3,12 +3,7 @@ import std/[strutils, sequtils, sets, tables, unittest]
 
 type
   Tile = enum
-    Empty = "·"
-    RMirror = "╱"
-    LMirror = "╲"
-    VSplit = "│"
-    HSplit = "─"
-    Energized = "#"
+    Empty = "·",  RMirror = "╱",  LMirror = "╲",  VSplit = "│", HSplit = "─"
   Grid = object
     height, width: int
     tiles: seq[seq[Tile]]
@@ -27,9 +22,6 @@ type
 
 func `[]`(grid: Grid, pos: Pos): Tile =
   grid.tiles[pos.y][pos.x]
-
-func `[]=`(grid: var Grid, pos: Pos, tile: Tile) =
-  grid.tiles[pos.y][pos.x] = tile
 
 func contains(grid: Grid, b: Beam): bool =
   ## Check if the beam's position is within the grid
@@ -83,19 +75,14 @@ func `=>`(b: Beam, s: Tile): Beams =
     case b.dir
     of Up, Down:    b =| b.dir
     of Left, Right: b => b.dir
-  of Energized:
-    assert false
-    b => Left
 
 func shine(grid: Grid, incoming: Beam): BeamPath =
   ## Shine the incoming beam through the grid
   var beams = @[incoming]
   while beams.len > 0:
     let beam = beams.pop
-
     if beam in result or beam notin grid:
       continue
-
     result.incl beam
 
     case (let bs = beam => grid[beam.pos]; bs.multiple)
@@ -126,13 +113,6 @@ func bestIncomingBeam(grid: Grid): Beam =
       mostEnergized = energizedPositions
       result = beam
 
-func overlay(grid: Grid, beamPath: BeamPath, onlyEmpty: bool): Grid =
-  var overlayed = grid
-  for pos in beamPath.positions:
-    if not onlyEmpty or grid[pos] == Empty:
-      overlayed[pos] = Energized
-  overlayed
-
 const example {.used.} = """
 .|...\....
 |.-.\.....
@@ -146,36 +126,22 @@ const example {.used.} = """
 ..//.|....
 """.strip
 
-func `$`(grid: Grid): string =
-  for y in 0..<grid.height:
-    for x in 0..<grid.width:
-      result &= $grid[Pos(x: x, y: y)]
-    result &= "\n"
-
-
 day 16:
   const CharMap = {'.': Empty, '/': RMirror, '\\': LMirror, '|': VSplit, '-': HSplit}.toTable
   let puzzle: Grid = block:
-    var tiles: seq[seq[Tile]]
-    var height, width: int
-    for line in input.strip.splitLines:
-      inc height
-      width = line.len
-      var row: seq[Tile]
-      for x, c in line.pairs:
-        row.add CharMap[c]
-      tiles.add row
+    let
+      tiles = input.strip.splitLines.mapIt(it.mapIt(CharMap[it]))
+      width = tiles[0].len
+      height = tiles.len
     Grid(height: height, width: width, tiles: tiles)
 
   part 1:
-    let beamPath = puzzle.shine Beam(pos: Pos(x: 0, y: 0), dir: Right)
-    result = beamPath.positions.len
+    let incomingBeam = Beam(pos: Pos(x: 0, y: 0), dir: Right)
+    puzzle.shine(incomingBeam).positions.len
 
   part 2:
     let bestBeam = puzzle.bestIncomingBeam
-    let beamPath = puzzle.shine(bestBeam)
-    # echo $(puzzle.overlay(beamPath, true))
-    result = beamPath.positions.len
+    puzzle.shine(bestBeam).positions.len
 
   verifyPart(1, 7236)
   verifyPart(2, 7521)
