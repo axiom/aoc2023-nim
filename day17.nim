@@ -1,5 +1,5 @@
 import aocd
-import std/[strutils, strformat, sequtils, heapqueue, sets, tables, unittest]
+import std/[strutils, sequtils, heapqueue, sets, tables, unittest]
 
 type
   Grid = seq[seq[uint8]]
@@ -7,97 +7,72 @@ type
     None = "#", Up = "↑", Down = "↓", Left = "←", Right = "→"
   Pos = object
     y, x: int
-    dirs: array[10, Direction]
+    dir: Direction
+    run: int
   Path = object
     pos: Pos
     fScore: int
 
-func `$`(g: Grid): string =
-  result = g.mapIt(it.mapIt($it).join).join("\n")
+func red(s: string): string = "\x1b[31m" & s & "\x1b[0m"
 
-func lastDir(pos: Pos): Direction = pos.dirs[0]
-
-func lastDir(path: Path): Direction = path.pos.lastDir
-
-func run(pos: Pos): int =
-  let steps = pos.dirs.toSeq.filterIt(it != None)
-
-  if steps.len <= 1:
-    return steps.len
-
-  result = 1
-  for i in 1..steps.high:
-    if steps[i] == steps[i - 1]:
-      inc result
-    else:
-      break
-
-func overlay(g: Grid, path: seq[(Pos, Direction)]): string =
+func overlay(g: Grid, path: Table[(int, int), Direction]): string =
   for y in 0..g.high:
     for x in 0..g[0].high:
-      let p = path.filterIt(it[0].x == x and it[0].y == y)
-      if p.len > 0:
-        result &= $p[0][1]
+      if (y, x) in path:
+        result &= red $path[(y, x)]
       else:
         result &= $g[y][x]
     result &= "\n"
 
-func manhattan(a, b: Pos): int =
-  abs(a.y - b.y) + abs(a.x - b.x)
 
-func `<`(a, b: Path): bool =
-  a.fScore < b.fScore
+func `<`(a, b: Path): bool = a.fScore < b.fScore
 
 func `->`(pos: Pos, dir: Direction): Pos =
-  let dirs = [dir, pos.dirs[0], pos.dirs[1], pos.dirs[2], pos.dirs[3], pos.dirs[4], pos.dirs[5], pos.dirs[6], pos.dirs[7], pos.dirs[8]]
+  let run = if pos.dir == dir: succ pos.run else: 1
   case dir
-  of Up:    Pos(y: pos.y - 1, x: pos.x,     dirs: dirs)
-  of Down:  Pos(y: pos.y + 1, x: pos.x,     dirs: dirs)
-  of Left:  Pos(y: pos.y,     x: pos.x - 1, dirs: dirs)
-  of Right: Pos(y: pos.y,     x: pos.x + 1, dirs: dirs)
+  of Up:    Pos(y: pos.y - 1, x: pos.x,     dir: dir, run: run)
+  of Down:  Pos(y: pos.y + 1, x: pos.x,     dir: dir, run: run)
+  of Left:  Pos(y: pos.y,     x: pos.x - 1, dir: dir, run: run)
+  of Right: Pos(y: pos.y,     x: pos.x + 1, dir: dir, run: run)
   else: pos
 
-func opposite(dir: Direction): Direction =
-  case dir
-  of Up:    Down
-  of Down:  Up
-  of Left:  Right
-  of Right: Left
-  of None:  None
+const Turns = {
+  Up:    @[Up, Left, Right],
+  Down:  @[Down, Left, Right],
+  Left:  @[Left, Up, Down],
+  Right: @[Right, Up, Down],
+  None:  @[Up, Down, Left, Right],
+}.toTable
 
-func isValidNextDirection(pos: Pos, dir: Direction): bool =
+func isValidNextDirection(pos: Pos; dir: Direction; minRun, maxRun: int): bool =
   let
     curr = dir
-    prev = pos.dirs[0]
+    prev = pos.dir
 
-  let turns = pos.dirs.toSeq.filterIt(it != None)
-  let turned = curr != prev and prev != None
-
-  if turned and curr == opposite(prev):
-    return false
-
-  if pos.run < 4:
-    return not turned
-  elif pos.run >= 10:
-    return turned
+  if prev == None:
+    return true
+  elif pos.run < minRun:
+    return curr == prev
+  elif pos.run >= maxRun:
+    return curr != prev
   else:
     return true
 
 func contains(g: Grid, p: Pos): bool =
   result = p.y in 0..g.high and p.x in 0..g[0].high
 
-func reconstructPath(cameFrom: Table[Pos, (Pos, Direction)], current: Pos): seq[(Pos, Direction)] =
+func reconstructPath(cameFrom: Table[Pos, (Pos, Direction)], current: Pos): Table[(int, int), Direction] =
   var current = current
-  result = @[(current, None)]
+  result = {(current.y, current.x): None}.toTable
   while current in cameFrom:
     let (pos, dir) = cameFrom[current]
     current = pos
-    result.add (current, dir)
+    result[(current.y, current.x)] = dir
 
-func solve(g: Grid): int =
+func solve(g: Grid, minRun, maxRun: int): int =
   let
     goal = Pos(y: g.high, x: g[0].high)
-    start = Pos(y: 0, x: 0)
+    start = Pos(y: 0, x: 0, run: 0, dir: None)
   var
     cameFrom: Table[Pos, (Pos, Direction)]
     gScore: Table[Pos, int]
@@ -105,45 +80,46 @@ func solve(g: Grid): int =
     frontier: HeapQueue[Path]
     best: Pos
 
+  func h(p: Pos): int = abs(goal.y - p.y) + abs(goal.x - p.x)
+  func d(p: Pos): int = g[p.y][p.x].int
+
   openSet.incl start
-  frontier.push Path(pos: start, fScore: start.manhattan(goal))
+  frontier.push Path(pos: start, fScore: h(start))
   gScore[start] = 0
   result = int.high
-
-  func h(p: Pos): int = p.manhattan(goal)
-  func d(p: Pos): int = g[p.y][p.x].int
 
   while frontier.len > 0:
     let current = frontier.pop
     openSet.excl current.pos
 
-    if current.pos.y == goal.y and current.pos.x == goal.x and current.pos.run >= 4:
+    if current.pos.y == goal.y and current.pos.x == goal.x and current.pos.run >= minRun:
       if gScore[current.pos] < result:
         result = gScore[current.pos]
         best = current.pos
+        # TODO: Will this not skip a better option?
+        break
 
-    for dir in [Up, Down, Left, Right]:
-      # Exclude 180 degree turns
-      if not current.pos.isValidNextDirection(dir):
+    for dir in Turns[current.pos.dir]:
+      let neighbor = current.pos -> dir
+
+      if neighbor notin g:
         continue
 
-      let neighbor = current.pos -> dir
-      # Exclude off grid positions
-      if neighbor notin g:
+      if neighbor in openset:
+        continue
+
+      if not isValidNextDirection(current.pos, dir, minRun, maxRun):
         continue
 
       let tentativeGScore = gScore.getOrDefault(current.pos, int.high) + d(neighbor)
       if tentativeGScore < gScore.getOrDefault(neighbor, int.high):
         gScore[neighbor] = tentativeGScore
-        cameFrom[neighbor] = (current.pos, current.pos.dirs[0])
-        let fScore = tentativeGScore + h(neighbor)
-        if neighbor notin openSet:
-          openSet.incl neighbor
-          frontier.push Path(pos: neighbor, fScore: fScore)
+        cameFrom[neighbor] = (current.pos, current.pos.dir)
+        openSet.incl neighbor
+        frontier.push Path(pos: neighbor, fScore: tentativeGScore + h(neighbor))
 
-  let path = reconstructPath(cameFrom, best)
-  debugEcho ""
-  debugEcho $g.overlay(path)
+  # let path = reconstructPath(cameFrom, best)
+  # debugEcho $g.overlay(path)
 
 const example1 {.used.} = """
 2413432311323
@@ -173,12 +149,12 @@ day 17:
   let puzzle: Grid = input.strip.splitLines.mapIt(it.mapIt(parseInt($it).uint8))
 
   part 1:
-    echo $puzzle
-    result = solve puzzle
-    echo result
+    solve(puzzle, -1, 3)
 
   part 2:
-    result = 0
+    solve(puzzle, 4, 10)
 
   verifyPart(1, 902)
-  # verifyPart(2, 1073)
+  verifyPart(2, 1073)
+  # verifyPart(1, 102)
+  # verifyPart(2, 94)
