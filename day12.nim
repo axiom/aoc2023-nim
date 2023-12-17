@@ -2,83 +2,148 @@ import aocd
 import std/[strutils, sequtils, strformat, tables, unittest]
 
 type
+  Condition = enum
+    Dmg = "#"
+    Ope = "."
+    Unk = "?"
   Record = object
-    conditions: string
+    conditions: seq[Condition]
     groups: seq[int]
   CacheKey = object
     c: int ## How far into the conditions we are
     g: int ## Which group we are dealing with
     gi: int ## How far into the current group we are
 
-const
-  Ope = '.'
-  Dmg = '#'
-  Unk = '?'
+func `$`(c: seq[Condition]): string =
+  c.mapIt($it).join
 
-proc possibleConfigurations(r: Record): int =
-  var cache = initTable[CacheKey, int]()
+func `$`(r: Record): string =
+  result = fmt"{r.conditions.mapIt($it).join} {r.groups}"
 
-  template remret(key: CacheKey, answer: untyped): untyped =
-    ## Remember answer and return it
-    cache[key] = answer
-    return answer
+var cache: Table[CacheKey, int]
 
-  proc solve(c, g, gi: int): int =
-    let key = CacheKey(c: c, g: g, gi: gi)
+proc solve(arrangement: seq[Condition], r: Record, c, g, gi: int): int =
+  ## c is our position in the condition
+  ## g is the group we are working on
+  ## gi is how many damaged springs that remain to match in the current group
+  ##  int.low means that we are currently not matching a group
+  ##  0 means that we just matched the last spring of a group, so we must end properly
+  let key = CacheKey(c: c, g: g, gi: gi)
+  if key in cache:
+    echo fmt" cache hit {key}: {cache[key]}"
+    return cache[key]
 
-    if c > r.conditions.high or g > r.groups.high:
-      remret key, 0
+  if gi != int.low or c == r.conditions.high:
+    echo $arrangement & fmt" {c:2} {g} {gi}"
 
-    let
-      subconds = r.conditions[c..r.conditions.high]
-      cond = subconds[0] # The current record state, either '#' or '.'
-      next = if subconds.len == 1: Ope else: subconds[1] # The next record state, or pretend next is fine.
-      group = r.groups[g]
-      remaining = group - gi
+  template remret(result: untyped): untyped =
+    # let value = result
+    # cache[key] = value
+    # return value
+    return result
 
-    echo fmt"key={key} subconds={subconds} group={group} remaining={remaining}"
+  func useAs(cond: Condition): seq[Condition] =
+    if c == 0:
+      return cond & arrangement[1..arrangement.high]
+    elif c == arrangement.high:
+      return arrangement[0..c - 1] & cond
+    else:
+      return arrangement[0..c - 1] & cond & arrangement[c + 1..arrangement.high]
 
-    if key in cache:
-      echo fmt"  cache hit: {cache[key]}"
-      return cache[key]
+  # let cc = if c > r.conditions.high: "X" else: $r.conditions[c]
+  # let cgi = if gi == int.low: "free" else: $gi
+  # echo fmt" {cc} solve({c}, {g}, {cgi})"
+  # echo $r.conditions[c..r.conditions.high] & " " & $gi
 
+  if g > r.groups.high:
+    # We have handled all groups, hopefully there are no unaccounted ? left...
+    remret 1
 
-    if remaining <= 0:
-      # The group must end on an operational spring.
-      if next == Ope or next == Unk:
-        # Skip the next state, since that must be an operational spring, and we
-        # don't want to try to start a group there since it will not work.
-        echo fmt"  group ended, continue with next group"
-        remret key, 1 + solve(c + 2, g + 1, 0)
-      else:
-        # We could not end the group here, skip to next potentially possible
-        # starting point.
-        echo fmt"  group could not end, starting over at next cond"
-        remret key, 0 #solve(c + 1, g, 0)
+  # Check if the condition is exhausted, and then we better be done with all the
+  # matching for us to be in a valid state.
+  if c > r.conditions.high:
+    if g < r.groups.high or (g == r.groups.high and gi == int.low):
+      # There are groups left to match, but no more condition, this is not part
+      # of a solution.
+      # echo "  groups left, or part of group left"
+      remret 0
+    elif g == r.groups.high and gi == 0:
+      # echo "  ended exactly on the last group!"
+      remret 1
+    elif g > r.groups.high and gi == int.low:
+      # echo "  ended with no more groups left to process!"
+      remret 1
+    elif g == r.groups.high and gi > 0:
+      # We were in the middle of matching a group but ran out of conditions,
+      # this is not a solution.
+      # echo "  not enough condition left to match"
+      remret 0
+    else:
+      echo fmt"  uncovered case!!! {g} {gi}"
+      assert false
 
+  let
+    cond = r.conditions[c]
+    group = r.groups[g]
+    free = gi == int.low
+    ended = gi == 0
+    inside = gi > 0
 
-    # Now check if we can fit the current group into this place in the
-    # condition.
-    case cond:
-      of Dmg:
-        # Wa have manage to place a damage spring at the current condition, so
-        # move on to the rest of the condition and the remaining damage
-        # springs in the group.
-        echo fmt"  damage spring placed, continue with rest of condition and group"
-        remret key, solve(c + 1, g, gi + 1)
-      of Unk:
-        # The state is unknown, it can be either operational or damage, we need
-        # to account for both scenarios.
-        echo fmt"  unknown state, try both operational and damage"
-        remret key, solve(c + 1, g, gi + 1) + solve(c + 1, g, 0)
-      of Ope:
-        echo fmt"  operational spring blocking, skip and start over"
-        remret key, solve(c + 1, g, 0)
-      else:
-        assert false
+  if cond == Unk and free:
+    remret solve(useAs Dmg, r, succ c, g, group - 1) + solve(useAs Ope, r, succ c, g, int.low)
+  if cond == Unk and inside:
+    remret solve(useAs Dmg, r, succ c, g, pred gi)
+  if cond == Unk and ended:
+    remret solve(useAs Ope, r, succ c, succ g, int.low)
 
-  # Fire off the calculations!
-  solve(0, 0, 0)
+  if cond == Ope and free:
+    remret solve(useAs Ope, r, succ c, g, int.low)
+  if cond == Ope and inside:
+    remret 0
+  if cond == Ope and ended:
+    remret solve(useAs Ope, r, succ c, succ g, if g == r.groups.high: int.low else: r.groups[succ g])
+
+  if cond == Dmg and free:
+    remret solve(useAs Dmg, r, succ c, g, group - 1)
+  if cond == Dmg and inside:
+    remret solve(useAs Dmg, r, succ c, g, pred gi)
+  if cond == Dmg and ended:
+    remret 0
+
+  assert false, "unreachable"
+
+proc solve(r: Record): int =
+  echo ""
+  echo "Solving"
+  for x in 0..r.conditions.high:
+    if x >= 10:
+      stdout.write (x div 10)
+    else:
+      stdout.write " "
+  echo ""
+  for x in 0..r.conditions.high:
+    stdout.write (x mod 10)
+  echo ""
+
+  echo r
+  clear cache
+  solve(r.conditions, r, 0, 0, int.low)
+
+const CharMap = {'.': Ope, '#': Dmg, '?': Unk}.toTable
+
+func toRecord(conditions: string, groups: string): Record =
+  result = Record(
+    conditions: conditions.strip.mapIt(CharMap[it]),
+    groups: groups.split(',').map(parseInt))
+
+check solve(toRecord("#", "1")) == 1
+check solve(toRecord("?", "1")) == 1
+check solve(toRecord(".", "1")) == 0
+check solve(toRecord("??", "1")) == 2
+check solve(toRecord("?.?", "1,1")) == 1
+check solve(toRecord("?..", "1")) == 1
+check solve(toRecord("???.###", "1,1,3")) == 1
+check solve(toRecord(".??..??...?##.", "1,1,3")) == 4
 
 const example {.used.} = """
 ???.### 1,1,3
@@ -91,23 +156,20 @@ const example {.used.} = """
 
 day 12:
   let records = example.strip.splitLines.mapIt:
-    let
-      parts = it.splitWhitespace(2)
-      conditions = parts[0].strip
-      groups = parts[1].split(',').map(parseInt)
-    Record(conditions: conditions, groups: groups)
+    let parts = it.splitWhitespace(2)
+    toRecord(parts[0], parts[1])
 
   echo fmt"Parsed {records.len} records"
 
   part 1:
     result = 0
-    for record in records:
-      # echo record
-      # echo fmt"  {possibleConfigurations(record)}"
-      # break
-      result += possibleConfigurations(record)
+    # for record in records:
+    #   result += solve(record)
 
   part 2:
     0
 
-  verifyPart(1, 7460)
+  # verifyPart(1, 7460)
+  # Example
+  # verifyPart(1, 21)
+  # verifyPart(2, 525152)
