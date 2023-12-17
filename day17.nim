@@ -7,7 +7,7 @@ type
     None = "#", Up = "↑", Down = "↓", Left = "←", Right = "→"
   Pos = object
     y, x: int
-    dirs: array[3, Direction]
+    dirs: array[10, Direction]
   Path = object
     pos: Pos
     fScore: int
@@ -18,6 +18,19 @@ func `$`(g: Grid): string =
 func lastDir(pos: Pos): Direction = pos.dirs[0]
 
 func lastDir(path: Path): Direction = path.pos.lastDir
+
+func run(pos: Pos): int =
+  let steps = pos.dirs.toSeq.filterIt(it != None)
+
+  if steps.len <= 1:
+    return steps.len
+
+  result = 1
+  for i in 1..steps.high:
+    if steps[i] == steps[i - 1]:
+      inc result
+    else:
+      break
 
 func overlay(g: Grid, path: seq[(Pos, Direction)]): string =
   for y in 0..g.high:
@@ -36,11 +49,12 @@ func `<`(a, b: Path): bool =
   a.fScore < b.fScore
 
 func `->`(pos: Pos, dir: Direction): Pos =
+  let dirs = [dir, pos.dirs[0], pos.dirs[1], pos.dirs[2], pos.dirs[3], pos.dirs[4], pos.dirs[5], pos.dirs[6], pos.dirs[7], pos.dirs[8]]
   case dir
-  of Up:    Pos(y: pos.y - 1, x: pos.x,     dirs: [dir, pos.dirs[0], pos.dirs[1]])
-  of Down:  Pos(y: pos.y + 1, x: pos.x,     dirs: [dir, pos.dirs[0], pos.dirs[1]])
-  of Left:  Pos(y: pos.y,     x: pos.x - 1, dirs: [dir, pos.dirs[0], pos.dirs[1]])
-  of Right: Pos(y: pos.y,     x: pos.x + 1, dirs: [dir, pos.dirs[0], pos.dirs[1]])
+  of Up:    Pos(y: pos.y - 1, x: pos.x,     dirs: dirs)
+  of Down:  Pos(y: pos.y + 1, x: pos.x,     dirs: dirs)
+  of Left:  Pos(y: pos.y,     x: pos.x - 1, dirs: dirs)
+  of Right: Pos(y: pos.y,     x: pos.x + 1, dirs: dirs)
   else: pos
 
 func opposite(dir: Direction): Direction =
@@ -52,11 +66,22 @@ func opposite(dir: Direction): Direction =
   of None:  None
 
 func isValidNextDirection(pos: Pos, dir: Direction): bool =
-  if pos.lastDir == None:
-    return true
-  if pos.lastDir.opposite == dir:
+  let
+    curr = dir
+    prev = pos.dirs[0]
+
+  let turns = pos.dirs.toSeq.filterIt(it != None)
+  let turned = curr != prev and prev != None
+
+  if turned and curr == opposite(prev):
     return false
-  dir != pos.dirs[0] or pos.dirs[0] != pos.dirs[1] or pos.dirs[1] != pos.dirs[2]
+
+  if pos.run < 4:
+    return not turned
+  elif pos.run >= 10:
+    return turned
+  else:
+    return true
 
 func contains(g: Grid, p: Pos): bool =
   result = p.y in 0..g.high and p.x in 0..g[0].high
@@ -92,7 +117,7 @@ func solve(g: Grid): int =
     let current = frontier.pop
     openSet.excl current.pos
 
-    if current.pos.y == goal.y and current.pos.x == goal.x:
+    if current.pos.y == goal.y and current.pos.x == goal.x and current.pos.run >= 4:
       if gScore[current.pos] < result:
         result = gScore[current.pos]
         best = current.pos
@@ -120,7 +145,7 @@ func solve(g: Grid): int =
   debugEcho ""
   debugEcho $g.overlay(path)
 
-const example {.used.} = """
+const example1 {.used.} = """
 2413432311323
 3215453535623
 3255245654254
@@ -136,6 +161,14 @@ const example {.used.} = """
 4322674655533
 """
 
+const example2 {.used.} = """
+111111111111
+999999999991
+999999999991
+999999999991
+999999999991
+"""
+
 day 17:
   let puzzle: Grid = input.strip.splitLines.mapIt(it.mapIt(parseInt($it).uint8))
 
@@ -148,4 +181,4 @@ day 17:
     result = 0
 
   verifyPart(1, 902)
-  # verifyPart(2, 246762)
+  # verifyPart(2, 1073)
