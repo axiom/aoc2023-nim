@@ -16,15 +16,14 @@ type
   Pos = object
     y, x: int
 
-  Node = object
-    color: int
-    pos: Pos
+  Node = int
+
+  Bounds = object
+    xlow, xhigh, ylow, yhigh: int
 
   Puzzle = object
-    width, height: int
+    bounds: Bounds
     nodes: Table[Pos, Node]
-
-  Grid = seq[seq[Node]]
 
 func `+`(a, b: Pos): Pos = Pos(y: a.y + b.y, x: a.x + b.x)
 func `*`(a: Pos, d: int): Pos = Pos(y: a.y * d, x: a.x * d)
@@ -39,18 +38,18 @@ func `->`(p: Pos, d: Direction): Pos =
 func red(s: string): string = "\x1b[31m" & s & "\x1b[0m"
 
 func `$`(n: Node): string =
-  if n.color == 0:
+  if n == 0:
     "."
-  elif n.color == 1:
+  elif n == 1:
     red "#"
   else:
     "#"
 
 func `$`(puzzle: Puzzle): string =
-  for y in 0..<puzzle.height:
-    for x in 0..<puzzle.width:
-      let p = puzzle.nodes.getOrDefault(Pos(y: y, x: x), Node(color: 0, pos: Pos(y: y, x: x)))
-      result &= $p
+  let b = puzzle.bounds
+  for y in b.ylow..b.yhigh:
+    for x in b.xlow..b.xhigh:
+      result &= $puzzle.nodes.getOrDefault(Pos(y: y, x: x), 0)
     result &= "\n"
 
 func parseDir(s: string): Direction =
@@ -65,9 +64,10 @@ func parseDir(s: string): Direction =
 
 func floodFill(p: Puzzle): Puzzle =
   var filled = p.nodes
-  let start = Pos(y: p.height div 2, x: p.width div 3)
-  var graph = @[start].toSet
-  var seen = @[start].toSet
+  let b = p.bounds
+  let start = Pos(y: b.yhigh div 2, x: b.xhigh div 3)
+  var graph = @[start].toHashSet
+  var seen = @[start].toHashSet
   var count = 0
   while graph.len > 0:
     inc count
@@ -77,14 +77,14 @@ func floodFill(p: Puzzle): Puzzle =
     let n = graph.pop
     seen.incl n
     if n notin p.nodes:
-      filled[n] = Node(color: 1, pos: n)
+      filled[n] = 1
       for d in [Up, Down, Left, Right]:
         let pos = n -> d
-        if pos notin seen and pos.y in 0..<p.height and pos.x in 0..<p.width:
+        if pos notin seen and pos.y in b.ylow..<b.yhigh and pos.x in b.xlow..<b.xhigh:
           graph.incl pos
 
-  filled[start] = Node(color: 1, pos: start)
-  Puzzle(nodes: filled, width: p.width, height: p.height)
+  filled[start] = 1
+  Puzzle(nodes: filled, bounds: p.bounds)
 
 func volume(puzzle: Puzzle): int =
   puzzle.nodes.len
@@ -116,44 +116,24 @@ day 18:
     var x, y: int
     var minx, maxx, miny, maxy: int
     var pos: Pos
-    var nodes: seq[Node]
+    var nodes: Table[Pos, Node]
 
     for instr in puzzle:
       for m in 1..instr.meters:
         pos = pos -> instr.dir
-        nodes.add Node(color: instr.color, pos: pos)
+        nodes[pos] = instr.color
 
-    for node in nodes:
-      minx = min(minx, node.pos.x)
-      maxx = max(maxx, node.pos.x)
-      miny = min(miny, node.pos.y)
-      maxy = max(maxy, node.pos.y)
+    for pos in nodes.keys:
+      minx = min(minx, pos.x)
+      maxx = max(maxx, pos.x)
+      miny = min(miny, pos.y)
+      maxy = max(maxy, pos.y)
 
-    var width = maxx - minx + 1
-    var height = maxy - miny + 1
+    let puz = Puzzle(nodes: nodes, bounds: Bounds(xlow: minx, xhigh: maxx, ylow: miny, yhigh: maxy))
 
-    for node in nodes.mitems:
-      node.pos.x -= minx
-      node.pos.y -= miny
-
-    var myNodes: Table[Pos, Node]
-    for node in nodes:
-      myNodes[node.pos] = node
-
-    var grid: Grid
-    for y in 0..<height:
-      grid.add newSeq[Node](width)
-      for x in 0..<width:
-        let node = myNodes.getOrDefault(Pos(y: y, x: x), Node(color: 0, pos: Pos(y: y, x: x)))
-        grid[y][x] = node
-
-    let puz = Puzzle(nodes: myNodes, width: width, height: height)
-
-    echo $puz
     let filled = floodFill puz
-    echo $filled
-    volume filled
-
+    let v: int64 = volume filled
+    v
 
   part 2:
     0
