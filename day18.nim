@@ -23,7 +23,7 @@ type
 
   Puzzle = object
     bounds: Bounds
-    nodes: Table[Pos, Node]
+    nodes: HashSet[Pos]
 
 func `+`(a, b: Pos): Pos = Pos(y: a.y + b.y, x: a.x + b.x)
 func `*`(a: Pos, d: int): Pos = Pos(y: a.y * d, x: a.x * d)
@@ -49,7 +49,11 @@ func `$`(puzzle: Puzzle): string =
   let b = puzzle.bounds
   for y in b.ylow..b.yhigh:
     for x in b.xlow..b.xhigh:
-      result &= $puzzle.nodes.getOrDefault(Pos(y: y, x: x), 0)
+      let p = Pos(y: y, x: x)
+      if p in puzzle.nodes:
+        result &= "#"
+      else:
+        result &= "."
     result &= "\n"
 
 func parseDir(s: string): Direction =
@@ -77,13 +81,13 @@ func floodFill(p: Puzzle): Puzzle =
     let n = graph.pop
     seen.incl n
     if n notin p.nodes:
-      filled[n] = 1
+      filled.incl n
       for d in [Up, Down, Left, Right]:
         let pos = n -> d
         if pos notin seen and pos.y in b.ylow..<b.yhigh and pos.x in b.xlow..<b.xhigh:
           graph.incl pos
 
-  filled[start] = 1
+  filled.incl start
   Puzzle(nodes: filled, bounds: p.bounds)
 
 func volume(puzzle: Puzzle): int =
@@ -116,14 +120,14 @@ day 18:
     var x, y: int
     var minx, maxx, miny, maxy: int
     var pos: Pos
-    var nodes: Table[Pos, Node]
+    var nodes: HashSet[Pos]
 
     for instr in puzzle:
       for m in 1..instr.meters:
         pos = pos -> instr.dir
-        nodes[pos] = instr.color
+        nodes.incl pos
 
-    for pos in nodes.keys:
+    for pos in nodes:
       minx = min(minx, pos.x)
       maxx = max(maxx, pos.x)
       miny = min(miny, pos.y)
@@ -136,7 +140,28 @@ day 18:
     v
 
   part 2:
-    0
+    var x, y: int
+    var minx, maxx, miny, maxy: int
+    var pos: Pos
+    var nodes: HashSet[Pos]
+
+    for instr in puzzle:
+      echo fmt"nodes = {nodes.len}"
+      for m in 1..instr.meters:
+        pos = pos -> instr.dir
+        nodes.incl pos
+
+    for pos in nodes:
+      minx = min(minx, pos.x)
+      maxx = max(maxx, pos.x)
+      miny = min(miny, pos.y)
+      maxy = max(maxy, pos.y)
+
+    let puz = Puzzle(nodes: nodes, bounds: Bounds(xlow: minx, xhigh: maxx, ylow: miny, yhigh: maxy))
+
+    let filled = floodFill puz
+    let v: int64 = volume filled
+    v
 
   verifyPart(1, 49061)
   # verifyPart(2, 94)
