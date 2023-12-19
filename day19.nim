@@ -22,35 +22,17 @@ type
 
   Workflow = seq[Rule]
 
-func options(s: Slice[int]): int =
-  max(0, s.b - s.a + 1)
-
-check options(1..8) == 8
-check options(9..0) == 0
-check options(1..1) == 1
-check options(6..0) == 0
-
-func options(a: Attributes): int =
-  a.cool.options * a.musical.options * a.aero.options * a.shiny.options
+func combinations(a: Attributes): int =
+  a.cool.len * a.musical.len * a.aero.len * a.shiny.len
 
 func isPossible(s: Slice[int]): bool =
-  s.options >= 1
-
-check isPossible(1..8)
-check not isPossible(9..0)
+  s.len >= 1
 
 func isPossible(node: RuleNode): bool =
   node.cool.isPossible or node.musical.isPossible or node.aero.isPossible or node.shiny.isPossible
 
 func `*`(a, b: Slice[int]): Slice[int] =
   max(a.a, b.a)..min(a.b, b.b)
-
-check (1..8) * (3..7) == 3..7
-check (3..7) * (1..8) == 3..7
-check (1..8) * (6..15) == 6..8
-check (0..0) * (6..3) == 6..0
-check not isPossible(6..0)
-check not isPossible(1..0)
 
 func `*`(a, b: Attributes): Attributes =
   Attributes(cool: a.cool * b.cool, musical: a.musical * b.musical, aero: a.aero * b.aero, shiny: a.shiny * b.shiny)
@@ -61,22 +43,11 @@ func `>=`(a: Slice[int], l: int): Slice[int] =
   if not result.isPossible:
     result = 1..0
 
-check (1..8) >= 3 == (4..8)
-check (5..8) >= 3 == (5..8)
-check (3..7) >= 3 == (4..7)
-check (3..7) >= 8 == (1..0)
-
 func `<=`(a: Slice[int], h: int): Slice[int] =
   result = min(a.a, h-1)..min(a.b, h-1)
   result = result * a
   if not result.isPossible:
     result = 1..0
-
-check (1..8) <= 7 == (1..6)
-check (3..7) <= 7 == (3..6)
-check (1..5) <= 7 == (1..5)
-check (3..7) <= 3 == (1..0)
-check (3..7) <= 2 == (1..0)
 
 const example {.used.} = """
 px{a<2006:qkq,m>2090:A,rfg}
@@ -171,7 +142,7 @@ day 19:
       var attributes: seq[Attributes] = @[Attributes(cool: node.cool, musical: node.musical, aero: node.aero, shiny: node.shiny)]
 
       for rule in workflows[node.label]:
-        var nextAttributes: seq[Attributes]
+        var nextRuleAttributes: seq[Attributes]
         while attributes.len > 0:
           let attrs = attributes.pop
           var
@@ -182,31 +153,31 @@ day 19:
 
           case rule.operation
           of Reject, Accept, Move: discard
-          of MoreCool:    cool = cool >= rule.value
-          of LessCool:    cool = cool <= rule.value
+          of MoreCool:    cool    = cool    >= rule.value
+          of LessCool:    cool    = cool    <= rule.value
           of MoreMusical: musical = musical >= rule.value
           of LessMusical: musical = musical <= rule.value
-          of MoreAero:    aero = aero >= rule.value
-          of LessAero:    aero = aero <= rule.value
-          of MoreShiny:   shiny = shiny >= rule.value
-          of LessShiny:   shiny = shiny <= rule.value
+          of MoreAero:    aero    = aero    >= rule.value
+          of LessAero:    aero    = aero    <= rule.value
+          of MoreShiny:   shiny   = shiny   >= rule.value
+          of LessShiny:   shiny   = shiny   <= rule.value
 
           frontier.incl RuleNode(label: rule.target, cool: cool, musical: musical, aero: aero, shiny: shiny)
 
           case rule.operation
           of Reject, Accept, Move: discard
-          of MoreCool:    cool = attrs.cool <= rule.value+1
-          of LessCool:    cool = attrs.cool >= rule.value-1
+          of MoreCool:    cool    = attrs.cool    <= rule.value+1
+          of LessCool:    cool    = attrs.cool    >= rule.value-1
           of MoreMusical: musical = attrs.musical <= rule.value+1
           of LessMusical: musical = attrs.musical >= rule.value-1
-          of MoreAero:    aero = attrs.aero <= rule.value+1
-          of LessAero:    aero = attrs.aero >= rule.value-1
-          of MoreShiny:   shiny = attrs.shiny <= rule.value+1
-          of LessShiny:   shiny = attrs.shiny >= rule.value-1
+          of MoreAero:    aero    = attrs.aero    <= rule.value+1
+          of LessAero:    aero    = attrs.aero    >= rule.value-1
+          of MoreShiny:   shiny   = attrs.shiny   <= rule.value+1
+          of LessShiny:   shiny   = attrs.shiny   >= rule.value-1
 
-          nextAttributes.add(Attributes(cool: cool, musical: musical, aero: aero, shiny: shiny))
+          nextRuleAttributes.add(Attributes(cool: cool, musical: musical, aero: aero, shiny: shiny))
 
-        attributes = nextAttributes
+        attributes = nextRuleAttributes
   var ns = passable.toSeq.mapIt(Attributes(cool: it.cool, musical: it.musical, aero: it.aero, shiny: it.shiny))
 
   part 1:
@@ -233,12 +204,12 @@ day 19:
     let nsh = ns.high
     var before = result
     for i in 0..nsh:
-      result += ns[i].options
+      result += ns[i].combinations
 
     before = result
     for i in 0..nsh-1:
       for j in i+1..nsh:
-        result -= (ns[i] * ns[j]).options
+        result -= (ns[i] * ns[j]).combinations
 
     # Did not need any more rounds than this...
 
