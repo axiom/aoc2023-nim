@@ -1,5 +1,5 @@
 import aocd
-import std/[strutils, strscans, strformat, sequtils, heapqueue, sets, tables, unittest]
+import std/[strutils, strscans, strformat, sequtils, sets, tables, unittest]
 
 type
   Category = enum
@@ -30,8 +30,19 @@ type
 func options(s: Slice[int]): int =
   max(0, s.b - s.a + 1)
 
+check options(1..8) == 8
+check options(9..0) == 0
+check options(1..1) == 1
+check options(6..0) == 0
+
+func options(a: Attributes): int =
+  a.cool.options * a.musical.options * a.aero.options * a.shiny.options
+
 func isPossible(s: Slice[int]): bool =
   s.options >= 1
+
+check isPossible(1..8)
+check not isPossible(9..0)
 
 func isPossible(node: RuleNode): bool =
   node.cool.isPossible or node.musical.isPossible or node.aero.isPossible or node.shiny.isPossible
@@ -56,21 +67,20 @@ check Rule(operation: Reject, target: "R").eval(Part()) == (true, "R")
 check Rule(operation: Accept, target: "A").eval(Part()) == (true, "A")
 check Rule(operation: Move, target: "qzb").eval(Part()) == (true, "qzb")
 
-func eval(workflow: Workflow, part: Part): (bool, string) =
+func eval(workflow: Workflow, part: Part): string =
   for rule in workflow:
-    let (matches, target) = eval(rule, part)
-    if (matches):
-      return (true, target)
+    if (let (matches, target) = eval(rule, part); matches):
+      return target
   assert false
 
-check @[Rule(operation: Reject, target: "R"), Rule(operation: Accept, target: "A")].eval(Part()) == (true, "R")
-check @[Rule(operation: LessCool, value: 42, target: "cool"), Rule(operation: Accept, target: "A")].eval(Part(cool: 3)) == (true, "cool")
+check @[Rule(operation: Reject, target: "R"), Rule(operation: Accept, target: "A")].eval(Part()) == "R"
+check @[Rule(operation: LessCool, value: 42, target: "cool"), Rule(operation: Accept, target: "A")].eval(Part(cool: 3)) == "cool"
 
 func eval(workflows: Workflows, part: Part): bool =
   ## Returns true for parts that are ultimately accepted
   var workflow = workflows["in"]
   while true:
-    let (matches, target) = workflow.eval(part)
+    let target = workflow.eval(part)
     if target == "A":
       return true
     elif target == "R":
@@ -91,15 +101,38 @@ check eval({
 func `*`(a, b: Slice[int]): Slice[int] =
   max(a.a, b.a)..min(a.b, b.b)
 
-func `>=`(a: var Slice[int], l: int) =
-  a = max(a.a, l)..max(a.b, l)
-  if not a.isPossible:
-    a = 9..0
+check (1..8) * (3..7) == 3..7
+check (3..7) * (1..8) == 3..7
+check (1..8) * (6..15) == 6..8
+check (0..0) * (6..3) == 6..0
+check not isPossible(6..0)
+check not isPossible(1..0)
 
-func `<=`(a: var Slice[int], h: int) =
-  a = min(a.a, h)..min(a.b, h)
-  if not a.isPossible:
-    a = 9..0
+func `*`(a, b: Attributes): Attributes =
+  Attributes(cool: a.cool * b.cool, musical: a.musical * b.musical, aero: a.aero * b.aero, shiny: a.shiny * b.shiny)
+
+func `>=`(a: Slice[int], l: int): Slice[int] =
+  result = max(a.a, l+1)..max(a.b, l+1)
+  result = result * a
+  if not result.isPossible:
+    result = 1..0
+
+check (1..8) >= 3 == (4..8)
+check (5..8) >= 3 == (5..8)
+check (3..7) >= 3 == (4..7)
+check (3..7) >= 8 == (1..0)
+
+func `<=`(a: Slice[int], h: int): Slice[int] =
+  result = min(a.a, h-1)..min(a.b, h-1)
+  result = result * a
+  if not result.isPossible:
+    result = 1..0
+
+check (1..8) <= 7 == (1..6)
+check (3..7) <= 7 == (3..6)
+check (1..5) <= 7 == (1..5)
+check (3..7) <= 3 == (1..0)
+check (3..7) <= 2 == (1..0)
 
 const example {.used.} = """
 px{a<2006:qkq,m>2090:A,rfg}
@@ -122,7 +155,7 @@ hdj{m>838:A,pv}
 """
 
 day 19:
-  let inputParts = example.strip.split("\n\n")
+  let inputParts = input.strip.split("\n\n")
   let workflows: Table[string, Workflow] = block:
     var workflows: Table[string, Workflow]
     for workflow in inputParts[0].strip.splitLines:
@@ -181,7 +214,6 @@ day 19:
     # attribute values while building up a graph?
     var passable: HashSet[RuleNode]
     var frontier: HashSet[RuleNode]
-    var seen: HashSet[string]
     frontier.incl RuleNode(label: "in", cool: 1..4000, musical: 1..4000, aero: 1..4000, shiny: 1..4000)
     block outer:
       while frontier.len > 0:
@@ -217,41 +249,137 @@ day 19:
             var cat: Category
             case rule.operation
             of Reject, Accept, Move: discard
-            of MoreCool:    cool    >= rule.value; cat = Cool
-            of LessCool:    cool    <= rule.value; cat = Cool
-            of MoreMusical: musical >= rule.value; cat = Musical
-            of LessMusical: musical <= rule.value; cat = Musical
-            of MoreAero:    aero    >= rule.value; cat = Aero
-            of LessAero:    aero    <= rule.value; cat = Aero
-            of MoreShiny:   shiny   >= rule.value; cat = Shiny
-            of LessShiny:   shiny   <= rule.value; cat = Shiny
+            of MoreCool:    cool = cool >= rule.value       ; cat = Cool
+            of LessCool:    cool = cool <= rule.value       ; cat = Cool
+            of MoreMusical: musical = musical >= rule.value ; cat = Musical
+            of LessMusical: musical = musical <= rule.value ; cat = Musical
+            of MoreAero:    aero = aero >= rule.value       ; cat = Aero
+            of LessAero:    aero = aero <= rule.value       ; cat = Aero
+            of MoreShiny:   shiny = shiny >= rule.value     ; cat = Shiny
+            of LessShiny:   shiny = shiny <= rule.value     ; cat = Shiny
 
             frontier.incl RuleNode(label: rule.target, cool: cool, musical: musical, aero: aero, shiny: shiny)
 
-            case cat
-            of Cool:
-              if cool.a > 1: nextAttributes.add(Attributes(cool: 1..cool.a - 1, musical: musical, aero: aero, shiny: shiny))
-              if cool.b < 4000: nextAttributes.add(Attributes(cool: cool.b + 1..4000, musical: musical, aero: aero, shiny: shiny))
-            of Musical:
-              if musical.a > 1: nextAttributes.add(Attributes(cool: cool, musical: 1..musical.a - 1, aero: aero, shiny: shiny))
-              if musical.b < 4000: nextAttributes.add(Attributes(cool: cool, musical: musical.b + 1..4000, aero: aero, shiny: shiny))
-            of Aero:
-              if aero.a > 1: nextAttributes.add(Attributes(cool: cool, musical: musical, aero: 1..aero.a - 1, shiny: shiny))
-              if aero.b < 4000: nextAttributes.add(Attributes(cool: cool, musical: musical, aero: aero.b + 1..4000, shiny: shiny))
-            of Shiny:
-              if shiny.a > 1: nextAttributes.add(Attributes(cool: cool, musical: musical, aero: aero, shiny: 1..shiny.a - 1))
-              if shiny.b < 4000: nextAttributes.add(Attributes(cool: cool, musical: musical, aero: aero, shiny: shiny.b + 1..4000))
+            case rule.operation
+            of Reject, Accept, Move: discard
+            of MoreCool:
+              nextAttributes.add(Attributes(cool: attrs.cool <= rule.value+1, musical: musical, aero: aero, shiny: shiny))
+            of LessCool:
+              nextAttributes.add(Attributes(cool: attrs.cool >= rule.value-1, musical: musical, aero: aero, shiny: shiny))
+            of MoreMusical:
+              nextAttributes.add(Attributes(cool: cool, musical: attrs.musical <= rule.value+1, aero: aero, shiny: shiny))
+            of LessMusical:
+              nextAttributes.add(Attributes(cool: cool, musical: attrs.musical >= rule.value-1, aero: aero, shiny: shiny))
+            of MoreAero:
+              nextAttributes.add(Attributes(cool: cool, musical: musical, aero: attrs.aero <= rule.value+1, shiny: shiny))
+            of LessAero:
+              nextAttributes.add(Attributes(cool: cool, musical: musical, aero: attrs.aero >= rule.value-1, shiny: shiny))
+            of MoreShiny:
+              nextAttributes.add(Attributes(cool: cool, musical: musical, aero: aero, shiny: attrs.shiny <= rule.value+1))
+            of LessShiny:
+              nextAttributes.add(Attributes(cool: cool, musical: musical, aero: aero, shiny: attrs.shiny >= rule.value-1))
+
           attributes = nextAttributes
 
-    result = 0
     # TODO: Calculate the *unique* number of possible combinations of attributes
     #  maybe enough to deal with the range boundaries only?
-    for node in passable:
-      debugEcho fmt"{node.cool.a:4}-{node.cool.b:4} {node.musical.a:4}-{node.musical.b:4} {node.aero.a:4}-{node.aero.b:4} {node.shiny.a:4}-{node.shiny.b:4}"
-      result += node.cool.options * node.musical.options * node.aero.options * node.shiny.options
+    # result = 0
+    # for node in passable:
+      # debugEcho fmt"{node.cool.a:4}..{node.cool.b:4} {node.musical.a:4}..{node.musical.b:4} {node.aero.a:4}..{node.aero.b:4} {node.shiny.a:4}..{node.shiny.b:4}"
+      # result += node.cool.options * node.musical.options * node.aero.options * node.shiny.options
 
-  # verifyPart(1, 383682)
-  # 37214657618763 is too low
+    result = 0
+    var ns = passable.toSeq.mapIt(Attributes(cool: it.cool, musical: it.musical, aero: it.aero, shiny: it.shiny))
+    let nsh = ns.high
+
+    # Double check with part 1?
+    var party = 0
+    for part in parts:
+      for node in passable:
+        if part.cool in node.cool and
+            part.musical in node.musical and
+            part.aero in node.aero and
+            part.shiny in node.shiny:
+          party+= part.cool + part.musical + part.aero + part.shiny
+          break
+    debugEcho fmt"party: {party}"
+
+    # Include cardinalities of the sets
+    # Exclude the cardinalities of the pair-wise intersections
+    # Include the cardinalities of the triple-wise intersections
+    # Exclude the cardinalities of the quadruple-wise intersections
+    # ...etc until we reach the cardinality of the intersection of all sets, or
+    # we run out of intersections.
+
+    debugEcho fmt"possible nodes: {ns.len}"
+    debugEcho fmt"calculating 0: {result}"
+
+    var before = result
+    for i in 0..nsh:
+      result += ns[i].options
+    if result == before:
+      debugEcho "no intersections"
+      return result
+
+    debugEcho fmt"calculating 1: {result}"
+
+    before = result
+    for i in 0..nsh-1:
+      for j in i+1..nsh:
+        result -= (ns[i] * ns[j]).options
+    if result == before:
+      debugEcho "no intersections"
+      return result
+
+    debugEcho fmt"calculating 2: {result}"
+
+    before = result
+    for i in 0..nsh-2:
+      for j in i+1..nsh-1:
+        for k in j+1..nsh:
+          result += (ns[i] * ns[j] * ns[k]).options
+    if result == before:
+      debugEcho "no intersections"
+      return result
+
+    debugEcho fmt"calculating 3: {result}"
+
+    before = result
+    for i in 0..nsh-3:
+      for j in i+1..nsh-2:
+        for k in j+1..nsh-1:
+          for l in k+1..nsh:
+            result -= (ns[i] * ns[j] * ns[k] * ns[l]).options
+    if result == before:
+      debugEcho "no intersections"
+      return result
+
+    debugEcho fmt"calculating 4: {result}"
+
+    before = result
+    for i in 0..nsh-4:
+      for j in i+1..nsh-3:
+        for k in j+1..nsh-2:
+          for l in k+1..nsh-1:
+            for m in l+1..nsh:
+              result += (ns[i] * ns[j] * ns[k] * ns[l] * ns[m]).options
+    if result == before:
+      debugEcho "no intersections"
+      return result
+
+    debugEcho fmt"calculating 5: {result}"
+
+    for i in 0..nsh-5:
+      for j in i+1..nsh-4:
+        for k in j+1..nsh-3:
+          for l in k+1..nsh-2:
+            for m in l+1..nsh-1:
+              for n in m+1..nsh:
+                result -= (ns[i] * ns[j] * ns[k] * ns[l] * ns[m] * ns[n]).options
+
+  verifyPart(1, 383682)
+  verifyPart(2, 117954800808317)
+
   # For example input
-  verifyPart(1, 19114)
-  verifyPart(2, 167409079868000)
+  # verifyPart(1, 19114)
+  # verifyPart(2, 167409079868000)
