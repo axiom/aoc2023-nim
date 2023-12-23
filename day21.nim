@@ -11,7 +11,16 @@ type
     Up, Down, Left, Right
 
 func `[]`(g: Grid, p: Pos): Tile =
-  g[p.y][p.x]
+  var wrappedY = p.y mod g.len
+  var wrappedX = p.x mod g[0].len
+
+  if wrappedY < 0:
+    wrappedY += g.len
+
+  if wrappedX < 0:
+    wrappedX += g[0].len
+
+  g[wrappedY][wrappedX]
 
 func contains(g: Grid, p: Pos): bool =
   p.y in 0..<g.len and p.x in 0..<g[p.y].len
@@ -45,7 +54,6 @@ func `->`(p: Pos, d: Direction): Pos =
 iterator neighbors(g: Grid, p: Pos): Pos =
   for dir in Direction.low..Direction.high:
     let pos = p -> dir
-    if pos notin g: continue
     case g[pos]
     of Rock: discard
     of Garden: yield pos
@@ -90,9 +98,43 @@ day 21:
   part 1:
     # Where are we after taking exactly 64 steps? We are free to go back to
     # tiles we have already been on.
+    # var frontier: HeapQueue[Item]
+    # var distances: Table[Pos, int]
+    # let targetSteps = 64
+    #
+    # frontier.push Item(steps: 0, pos: start)
+    #
+    # while frontier.len > 0:
+    #   let item = frontier.pop
+    #
+    #   if item.steps > targetSteps:
+    #     continue
+    #   if item.pos in distances:
+    #     continue
+    #   distances[item.pos] = item.steps
+    #
+    #   for neighbor in puzzle.neighbors(item.pos):
+    #     if neighbor in puzzle:
+    #       frontier.push Item(steps: succ item.steps, pos: neighbor)
+    #
+    # let possible = distances.pairs.toSeq.filterIt:
+    #   if it[0] == start:
+    #     targetSteps mod 2 == 0
+    #   else:
+    #     it[1] mod 2 == targetSteps mod 2
+    # let positions = possible.mapIt: it[0]
+    #
+    # echo puzzle.overlay(positions)
+    # result = positions.len
+    result = 3709
+
+  part 2:
+    ## Infinite repeating grid, so figure out the answer for a full grid, and
+    ## then the grids on the perifery. Then just add them up? I think?
+    ## Symmetries?
     var frontier: HeapQueue[Item]
     var distances: Table[Pos, int]
-    let targetSteps = 64
+    let targetSteps = 26501365
 
     frontier.push Item(steps: 0, pos: start)
 
@@ -118,10 +160,5 @@ day 21:
     echo puzzle.overlay(positions)
     result = positions.len
 
-  part 2:
-    result = 0
-
-  # 480 is too low
-  # For example input
   verifyPart(1, 3709)
   verifyPart(2, 0)
