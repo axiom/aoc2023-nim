@@ -128,7 +128,7 @@ template day*(day: int, solution: untyped): untyped =
         # Put the code stuff into a function so that I can evaluate it when I
         # want, and also use the implicit result variable.
         var x = proc (): string =
-          proc inner(): auto =
+          proc inner(): int =
             answer
           return $inner()
         answers[partNum] = x()
