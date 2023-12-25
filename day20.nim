@@ -2,7 +2,7 @@ import aocd
 import std/[strutils, deques, strformat, strscans, sequtils, sets, tables, unittest]
 
 type
-  Op = enum Pass = "", FlipFlop = "%", Conj = "&"
+  Op = enum Pass = "=", FlipFlop = "%", Conj = "&"
 
   Signal = enum Low, High
 
@@ -11,14 +11,14 @@ type
     case op: Op
     of Pass:     value: Signal
     of FlipFlop: on: bool
-    of Conj:     highs: Table[string, Signal]
+    of Conj:     memory: Table[string, Signal]
     label: string
     outputs: seq[Node]
     inputs: int
 
   Input = object
     sender: string
-    label: string
+    target: string
     value: Signal
 
 func allHigh(node: Node): bool =
@@ -26,13 +26,13 @@ func allHigh(node: Node): bool =
   of Pass:     false
   of FlipFlop: false
   of Conj:
-    for value in node.highs.values:
+    for value in node.memory.values:
       if value == Low:
         return false
     return true
 
 func `$`(input: Input): string =
-  fmt"{input.sender} -{input.value}-> {input.label}"
+  fmt"{input.sender} -{input.value}-> {input.target}"
 
 func `$`(node: Node): string =
   let outputs = node.outputs.mapIt(it.label).join(", ")
@@ -42,30 +42,27 @@ func `$`(node: Node): string =
   of FlipFlop:
     fmt"{node.op}{node.label} [{node.on}] -> {outputs}"
   of Conj:
-    fmt"{node.op}{node.label} [{node.allHigh}/{node.highs}] -> {outputs}"
+    fmt"{node.op}{node.label} [{node.allHigh}/{node.memory}] -> {outputs}"
 
 func eval(node: var Node, input: Input): seq[Input] =
   case node.op
   of Pass:
-    # Just pass the input along to the output
     node.outputs.mapIt:
-      Input(sender: node.label, label: it.label, value: input.value)
+      Input(sender: node.label, target: it.label, value: input.value)
   of FlipFlop:
-    if input.value == Low:
+    case input.value
+    of Low:
       let output = if node.on: Low else: High
       node.on = not node.on
       node.outputs.mapIt:
-        Input(sender: node.label, label: it.label, value: output)
-    else:
+        Input(sender: node.label, target: it.label, value: output)
+    of High:
       @[]
   of Conj:
-    node.highs[input.sender] = input.value
-    if node.allHigh:
-      node.outputs.mapIt:
-        Input(sender: node.label, label: it.label, value: Low)
-    else:
-      node.outputs.mapIt:
-        Input(sender: node.label, label: it.label, value: High)
+    node.memory[input.sender] = input.value
+    let signal = if node.allHigh: Low else: High
+    node.outputs.mapIt:
+      Input(sender: node.label, target: it.label, value: signal)
 
 const example1 {.used.} = """
 broadcaster -> a, b, c
@@ -81,11 +78,10 @@ broadcaster -> a
 &inv -> b
 %b -> con
 &con -> output
-
 """
 
 day 20:
-  let puzzle = example2
+  let puzzle = input
   let nodes = block:
     type ParseNode = object
       op: Op
@@ -99,12 +95,17 @@ day 20:
       elif (let (ok, left, right) = it.scanTuple("&$w -> $+$."); ok):
         ParseNode(op: Conj, label: left, outputs: right.split(", "))
       else:
+        assert false
         ParseNode()
 
     # Convert parse nodes to real nodes
     var nodes: Table[string, Node]
     for pnode in parseNodes:
       nodes[pnode.label] = Node(op: pnode.op, label: pnode.label)
+      # Add all the outputs as nodes also if they not already exists.
+      for output in pnode.outputs:
+        if output notin nodes:
+          nodes[output] = Node(op: Pass, label: output)
 
     # Wire up the outputs of the nodes
     for pnode in parseNodes:
@@ -117,30 +118,43 @@ day 20:
         output.inputs += 1
         case output.op
         of Conj:
-          output.highs[node.label] = Low
+          output.memory[node.label] = Low
         of FlipFlop: discard
         of Pass: discard
 
     nodes
 
+  # Print graphviz graph
+  for node in nodes.values:
+    let color = case node.op
+                of Pass: "honeydew"
+                of FlipFlop: "mistyrose"
+                of Conj: "aliceblue"
+    echo fmt"""{node.label} [label="{node.op} {node.label}", fillcolor={color}];"""
+  echo ""
+  for node in nodes.values:
+    for output in node.outputs:
+      echo fmt"""{node.label} -> {output.label};"""
+  echo ""
+
   part 1:
     var lows, highs: int
-    for b in 1..1:
+    for b in 1..1000:
       var inputs: Deque[Input]
-      inputs.addLast Input(sender: "button", label: "broadcaster", value: Low)
+      inputs.addLast Input(sender: "button", target: "broadcaster", value: Low)
 
       while inputs.len > 0:
         let input = inputs.popFirst
-        echo input
+        # echo input
 
         case input.value
         of Low: inc lows
         of High: inc highs
 
-        var node = nodes[input.label]
+        var node = nodes[input.target]
         for inp in eval(node, input):
           inputs.addLast inp
-      echo ""
+      # echo ""
 
     echo fmt"lows: {lows}, highs: {highs} -> {lows * highs}"
     result = highs * lows
@@ -150,5 +164,6 @@ day 20:
 
   # 686598143 is too low
   # For example input
-  verifyPart(1, 32000000)
+  # verifyPart(1, 32000000)
+  verifyPart(1, 11687500)
   verifyPart(2, 0)
