@@ -1,5 +1,5 @@
 import aocd
-import std/[strutils, deques, strformat, strscans, sequtils, sets, tables, unittest]
+import std/[strutils, deques, strformat, strscans, sequtils, sets, intsets, tables, unittest]
 
 type
   Op = enum Pass = "=", FlipFlop = "%", Conj = "&"
@@ -161,9 +161,33 @@ day 20:
 
   part 2:
     result = 0
+    var lows, highs: int
+    var hits: Table[string, IntSet]
+    var mem: Table[string, Signal]
+
+    for b in 1..1_000_000_000:
+      inc result
+      var inputs: Deque[Input]
+      inputs.addLast Input(sender: "button", target: "broadcaster", value: Low)
+
+      while inputs.len > 0:
+        let input = inputs.popFirst
+
+        if input.target == "zh" and input.value == High:
+          mem[input.sender] = input.value
+          echo fmt"b: {b}: {mem}"
+
+        var node = nodes[input.target]
+        for inp in eval(node, input):
+          inputs.addLast inp
+
+    result = 1
+    for hit in hits.values:
+      result *= hit.toSeq[0]
 
   # 686598143 is too low
   # For example input
   # verifyPart(1, 32000000)
   verifyPart(1, 11687500)
+  # 75551871864483 is too low
   verifyPart(2, 0)
